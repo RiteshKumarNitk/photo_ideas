@@ -43,10 +43,25 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 MaterialPageRoute(builder: (context) => const HomeScreen()),
               );
             } else {
-               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Please check your email for confirmation link.')),
+               showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => AlertDialog(
+                  title: const Text('Confirmation Required'),
+                  content: const Text(
+                    'Account created successfully! Please check your email and click the confirmation link to complete the registration. Once confirmed, you can log in.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(context); // Close dialog
+                        Navigator.pop(context); // Go back to login
+                      },
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
               );
-               Navigator.pop(context); // Go back to login
             }
           }
         }

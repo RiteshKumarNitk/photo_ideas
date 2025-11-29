@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../favorites/screens/favorites_screen.dart';
+import 'help_support_screen.dart';
+import 'edit_profile_screen.dart';
+import '../../admin/screens/admin_dashboard_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -11,7 +15,24 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final User? user = Supabase.instance.client.auth.currentUser;
+  late final StreamSubscription<AuthState> _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    super.dispose();
+  }
+
 
   Future<void> _logout() async {
     await Supabase.instance.client.auth.signOut();
@@ -26,8 +47,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final User? user = Supabase.instance.client.auth.currentUser;
     final String name = user?.userMetadata?['full_name'] ?? 'User';
     final String email = user?.email ?? 'No Email';
+
+    final String? avatarUrl = user?.userMetadata?['avatar_url'];
+    final String? phone = user?.userMetadata?['phone_number'];
+    final String? gender = user?.userMetadata?['gender'];
 
     return Scaffold(
       body: SafeArea(
@@ -39,10 +65,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               CircleAvatar(
                 radius: 50,
                 backgroundColor: Theme.of(context).colorScheme.primary,
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                  style: const TextStyle(fontSize: 40, color: Colors.white),
-                ),
+                backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                    ? NetworkImage(avatarUrl)
+                    : null,
+                child: avatarUrl == null || avatarUrl.isEmpty
+                    ? Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                        style: const TextStyle(fontSize: 40, color: Colors.white),
+                      )
+                    : null,
               ),
               const SizedBox(height: 16),
               Text(
@@ -53,7 +84,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 email,
                 style: Theme.of(context).textTheme.bodyLarge,
               ),
+              if (phone != null && phone.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  phone,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+              if (gender != null && gender.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  gender,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
               const SizedBox(height: 32),
+              _buildProfileOption(
+                context,
+                Icons.edit,
+                "Edit Profile",
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+                  );
+                  if (result == true) {
+                    setState(() {});
+                  }
+                },
+              ),
               _buildProfileOption(
                 context, 
                 Icons.favorite, 
@@ -65,9 +124,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   );
                 },
               ),
-              _buildProfileOption(context, Icons.history, "History"),
+              // _buildProfileOption(context, Icons.history, "History"),
               _buildProfileOption(context, Icons.settings, "Settings"),
-              _buildProfileOption(context, Icons.help, "Help & Support"),
+              _buildProfileOption(
+                context, 
+                Icons.help, 
+                "Help & Support",
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
+                  );
+                },
+              ),
+              if (email == 'riteshkumar.nitk21@gmail.com') ...[
+                _buildProfileOption(
+                  context,
+                  Icons.admin_panel_settings,
+                  "Admin Dashboard",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+                    );
+                  },
+                ),
+              ],
               const SizedBox(height: 20),
               _buildProfileOption(
                 context, 

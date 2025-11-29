@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../utils/data_source.dart';
 import '../../categories/screens/category_grid_screen.dart';
 import '../../quotes/screens/quotes_screen.dart';
@@ -185,8 +186,60 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class HomeContent extends StatelessWidget {
+class HomeContent extends StatefulWidget {
   const HomeContent({super.key});
+
+  @override
+  State<HomeContent> createState() => _HomeContentState();
+}
+
+class _HomeContentState extends State<HomeContent> {
+  List<String> _trendingImages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadImages();
+  }
+
+  Future<void> _loadImages() async {
+    // Start with local data
+    List<String> images = [
+      ...DataSource.haircutImages,
+      ...DataSource.weddingImages,
+      ...DataSource.babyImages,
+      ...DataSource.natureImages,
+      ...DataSource.travelImages,
+      ...DataSource.architectureImages,
+    ]..shuffle();
+
+    try {
+      // Fetch from Supabase
+      final response = await Supabase.instance.client
+          .from('images')
+          .select('url')
+          .order('created_at', ascending: false)
+          .limit(20);
+      
+      final supabaseImages = (response as List)
+          .map((item) => item['url'] as String)
+          .toList();
+      
+      if (supabaseImages.isNotEmpty) {
+        images.insertAll(0, supabaseImages); // Add new images to the top
+      }
+    } catch (e) {
+      debugPrint('Error fetching images: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _trendingImages = images;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -215,16 +268,13 @@ class HomeContent extends StatelessWidget {
                 const SizedBox(height: 12),
                 SizedBox(
                   height: 150,
-                  child: ListView.builder(
+                  child: _isLoading 
+                      ? const Center(child: CircularProgressIndicator())
+                      : ListView.builder(
                     scrollDirection: Axis.horizontal,
-                    itemCount: 5,
+                    itemCount: _trendingImages.length,
                     itemBuilder: (context, index) {
-                      // Use a mix of images for trending
-                      final trendingImages = [
-                        ...DataSource.haircutImages,
-                        ...DataSource.weddingImages,
-                      ]..shuffle();
-                      final imageUrl = trendingImages[index % trendingImages.length];
+                      final imageUrl = _trendingImages[index];
                       
                       return GestureDetector(
                         onTap: () {

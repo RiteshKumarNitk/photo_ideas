@@ -46,6 +46,7 @@ dependencies:
   supabase_flutter: ^2.10.3
   provider: ^6.1.5+1
   shared_preferences: ^2.5.3
+  image_picker: ^1.2.1
 
 dev_dependencies:
   flutter_test:

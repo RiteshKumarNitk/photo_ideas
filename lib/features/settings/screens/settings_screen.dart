@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../auth/screens/login_screen.dart';
-import 'edit_profile_screen.dart';
+import '../../profile/screens/edit_profile_screen.dart';
 import 'help_support_screen.dart';
 
 class SettingsScreen extends StatelessWidget {

@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_print
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseService {
@@ -15,7 +17,7 @@ class SupabaseService {
       return data.map((e) => e['url'] as String).toList();
     } catch (e) {
       // Fallback or log error
-      print('Error fetching images for $category: $e');
+      debugPrint('Error fetching images for $category: $e');
       return [];
     }
   }
@@ -30,7 +32,7 @@ class SupabaseService {
       final List<dynamic> data = response as List<dynamic>;
       return data.map((e) => e['url'] as String).toList();
     } catch (e) {
-      print('Error fetching all images: $e');
+      debugPrint('Error fetching all images: $e');
       return [];
     }
   }
@@ -63,7 +65,7 @@ class SupabaseService {
         return true; // Liked
       }
     } catch (e) {
-      print('Error toggling like: $e');
+      debugPrint('Error toggling like: $e');
       rethrow;
     }
   }
@@ -83,7 +85,7 @@ class SupabaseService {
       
       return response != null;
     } catch (e) {
-      print('Error checking like status: $e');
+      debugPrint('Error checking like status: $e');
       return false;
     }
   }
@@ -96,7 +98,7 @@ class SupabaseService {
       
       return count;
     } catch (e) {
-      print('Error getting like count: $e');
+      debugPrint('Error getting like count: $e');
       return 0;
     }
   }
@@ -115,7 +117,7 @@ class SupabaseService {
       final List<dynamic> data = response as List<dynamic>;
       return data.map((e) => e['image_url'] as String).toList();
     } catch (e) {
-      print('Error fetching liked images: $e');
+      debugPrint('Error fetching liked images: $e');
       return [];
     }
   }
@@ -138,7 +140,7 @@ class SupabaseService {
         'author': (e['author'] as String?) ?? 'Unknown',
       }).toList();
     } catch (e) {
-      print('Error fetching quotes: $e');
+      debugPrint('Error fetching quotes: $e');
       return [];
     }
   }
@@ -166,7 +168,7 @@ class SupabaseService {
         return true;
       }
     } catch (e) {
-      print('Error toggling quote like: $e');
+      debugPrint('Error toggling quote like: $e');
       rethrow;
     }
   }
@@ -186,7 +188,7 @@ class SupabaseService {
       
       return response != null;
     } catch (e) {
-      print('Error checking quote like status: $e');
+      debugPrint('Error checking quote like status: $e');
       return false;
     }
   }
@@ -201,7 +203,7 @@ class SupabaseService {
       
       return count;
     } catch (e) {
-      print('Error getting quote like count: $e');
+      debugPrint('Error getting quote like count: $e');
       return 0;
     }
   }

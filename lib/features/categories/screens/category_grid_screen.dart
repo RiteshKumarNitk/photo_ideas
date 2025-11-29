@@ -42,9 +42,9 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
     // Assuming title matches category in DB for simplicity
     List<String> images = await SupabaseService.getImagesByCategory(widget.title);
 
-    if (images.isEmpty) {
-      images = widget.fallbackImages;
-    }
+    // Merge with fallback images
+    // Use a Set to avoid duplicates if necessary, but for now just append
+    images.addAll(widget.fallbackImages);
 
     if (mounted) {
       setState(() {
