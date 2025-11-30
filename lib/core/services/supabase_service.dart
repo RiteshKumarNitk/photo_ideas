@@ -131,16 +131,39 @@ class SupabaseService {
     try {
       final response = await client
           .from('quotes')
-          .select('id, text, author');
+          .select('id, text, author, category');
 
       final List<dynamic> data = response as List<dynamic>;
       return data.map((e) => {
         'id': e['id'] as int,
         'text': e['text'] as String,
         'author': (e['author'] as String?) ?? 'Unknown',
+        'category': (e['category'] as String?) ?? 'Uncategorized',
       }).toList();
     } catch (e) {
       debugPrint('Error fetching quotes: $e');
+      return [];
+    }
+  }
+
+  // Fetch quotes by category
+  static Future<List<Map<String, dynamic>>> getQuotesByCategory(String category) async {
+    try {
+      final response = await client
+          .from('quotes')
+          .select('id, text, author, category')
+          .eq('category', category)
+          .order('created_at', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((e) => {
+        'id': e['id'] as int,
+        'text': e['text'] as String,
+        'author': (e['author'] as String?) ?? 'Unknown',
+        'category': (e['category'] as String?) ?? 'Uncategorized',
+      }).toList();
+    } catch (e) {
+      debugPrint('Error fetching quotes for $category: $e');
       return [];
     }
   }

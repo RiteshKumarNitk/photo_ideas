@@ -14,7 +14,9 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _subtitleController;
+  late TextEditingController _posingInstructionsController;
   String? _selectedCategory;
+  String? _selectedSubCategory;
   bool _isLoading = false;
 
   final List<String> _categories = [
@@ -26,12 +28,23 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
     'Architecture',
   ];
 
+  final Map<String, List<String>> _subCategories = {
+    'Haircut Ideas': ['Men', 'Women', 'Short', 'Long'],
+    'Wedding Photos': ['Couple', 'Bride', 'Groom', 'Decor'],
+    'Baby Photos': ['Newborn', 'Family', 'Outdoor'],
+    'Nature': ['Landscape', 'Forest', 'Beach'],
+    'Travel': ['City', 'Adventure', 'Beach'],
+    'Architecture': ['Modern', 'Historic'],
+  };
+
   @override
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.imageData['title'] ?? '');
     _subtitleController = TextEditingController(text: widget.imageData['subtitle'] ?? '');
+    _posingInstructionsController = TextEditingController(text: widget.imageData['posing_instructions'] ?? '');
     _selectedCategory = widget.imageData['category'];
+    _selectedSubCategory = widget.imageData['sub_category'];
     
     // Ensure selected category is in the list, otherwise add it or default
     if (_selectedCategory != null && !_categories.contains(_selectedCategory)) {
@@ -50,7 +63,9 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
           .update({
             'title': _titleController.text.trim(),
             'subtitle': _subtitleController.text.trim(),
+            'posing_instructions': _posingInstructionsController.text.trim(),
             'category': _selectedCategory,
+            'sub_category': _selectedSubCategory,
           })
           .eq('id', widget.imageData['id']);
 
@@ -117,6 +132,22 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              TextFormField(
+                controller: _posingInstructionsController,
+                decoration: const InputDecoration(
+                  labelText: 'Posing Instructions',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.info_outline),
+                ),
+                maxLines: 3,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter posing instructions';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 decoration: const InputDecoration(
@@ -133,6 +164,7 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
                 onChanged: (value) {
                   setState(() {
                     _selectedCategory = value;
+                    _selectedSubCategory = null;
                   });
                 },
                 validator: (value) {
@@ -142,6 +174,33 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
+              if (_selectedCategory != null && _subCategories.containsKey(_selectedCategory))
+                DropdownButtonFormField<String>(
+                  value: _selectedSubCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Sub-Category',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.subdirectory_arrow_right),
+                  ),
+                  items: _subCategories[_selectedCategory]!
+                      .map((sub) => DropdownMenuItem(
+                            value: sub,
+                            child: Text(sub),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedSubCategory = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select a sub-category';
+                    }
+                    return null;
+                  },
+                ),
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
@@ -170,6 +229,7 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
   void dispose() {
     _titleController.dispose();
     _subtitleController.dispose();
+    _posingInstructionsController.dispose();
     super.dispose();
   }
 }

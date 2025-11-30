@@ -15,7 +15,9 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _subtitleController = TextEditingController();
+  final _posingInstructionsController = TextEditingController();
   String? _selectedCategory;
+  String? _selectedSubCategory;
   bool _isLoading = false;
   File? _imageFile;
   Uint8List? _webImage;
@@ -29,6 +31,15 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
     'Travel',
     'Architecture',
   ];
+
+  final Map<String, List<String>> _subCategories = {
+    'Haircut Ideas': ['Men', 'Women', 'Short', 'Long'],
+    'Wedding Photos': ['Couple', 'Bride', 'Groom', 'Decor'],
+    'Baby Photos': ['Newborn', 'Family', 'Outdoor'],
+    'Nature': ['Landscape', 'Forest', 'Beach'],
+    'Travel': ['City', 'Adventure', 'Beach'],
+    'Architecture': ['Modern', 'Historic'],
+  };
 
   Future<void> _pickImage() async {
     try {
@@ -100,8 +111,10 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
       await Supabase.instance.client.from('images').insert({
         'url': imageUrl,
         'category': _selectedCategory,
+        'sub_category': _selectedSubCategory,
         'title': _titleController.text.trim(),
         'subtitle': _subtitleController.text.trim(),
+        'posing_instructions': _posingInstructionsController.text.trim(),
         'created_at': DateTime.now().toIso8601String(),
       });
 
@@ -115,8 +128,10 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
           _imageFile = null;
           _webImage = null;
           _selectedCategory = null;
+          _selectedSubCategory = null;
           _titleController.clear();
           _subtitleController.clear();
+          _posingInstructionsController.clear();
         });
       }
     } catch (e) {
@@ -207,6 +222,22 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
                   prefixIcon: Icon(Icons.subtitles),
                 ),
               ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _posingInstructionsController,
+                decoration: const InputDecoration(
+                  labelText: 'Posing Instructions',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.info_outline),
+                ),
+                maxLines: 3,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter posing instructions';
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 24),
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
@@ -224,6 +255,7 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
                 onChanged: (value) {
                   setState(() {
                     _selectedCategory = value;
+                    _selectedSubCategory = null; // Reset sub-category
                   });
                 },
                 validator: (value) {
@@ -233,6 +265,33 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
+              if (_selectedCategory != null && _subCategories.containsKey(_selectedCategory))
+                DropdownButtonFormField<String>(
+                  value: _selectedSubCategory,
+                  decoration: const InputDecoration(
+                    labelText: 'Sub-Category',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.subdirectory_arrow_right),
+                  ),
+                  items: _subCategories[_selectedCategory]!
+                      .map((sub) => DropdownMenuItem(
+                            value: sub,
+                            child: Text(sub),
+                          ))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedSubCategory = value;
+                    });
+                  },
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please select a sub-category';
+                    }
+                    return null;
+                  },
+                ),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _isLoading ? null : _uploadImage,
@@ -257,6 +316,7 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
   void dispose() {
     _titleController.dispose();
     _subtitleController.dispose();
+    _posingInstructionsController.dispose();
     super.dispose();
   }
 }

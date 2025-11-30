@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../../core/models/photo_model.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../images/screens/fullscreen_image_viewer.dart';
 
@@ -62,12 +63,18 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     itemCount: _likedImages.length,
                     itemBuilder: (context, index) {
                       final imageUrl = _likedImages[index];
+                      final photo = PhotoModel(
+                        url: imageUrl,
+                        category: 'Favorite',
+                        posingInstructions: 'You liked this photo!',
+                      );
+                      
                       return GestureDetector(
                         onTap: () async {
                           await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => FullscreenImageViewer(imageUrl: imageUrl),
+                              builder: (context) => FullscreenImageViewer(photo: photo),
                             ),
                           );
                           // Refresh list when coming back, in case user unliked
