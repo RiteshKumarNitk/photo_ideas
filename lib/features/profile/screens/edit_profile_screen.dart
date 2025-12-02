@@ -118,6 +118,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         final uploadedUrl = await _uploadImage(user.id);
         if (uploadedUrl != null) {
           avatarUrl = uploadedUrl;
+        } else {
+          throw Exception('Failed to upload image. Please try again.');
         }
       }
 
