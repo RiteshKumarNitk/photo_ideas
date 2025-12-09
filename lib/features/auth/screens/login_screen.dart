@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../home/screens/home_screen.dart';
@@ -31,6 +32,94 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     });
+  }
+
+
+  Future<void> _showForgotPasswordDialog() async {
+    final emailController = TextEditingController();
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset Password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Enter your email address to receive a password reset link.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              decoration: const InputDecoration(
+                labelText: 'Email',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.email_outlined),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              final email = emailController.text.trim();
+              if (email.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please enter your email')),
+                );
+                return;
+              }
+
+              Navigator.pop(context); // Close dialog
+
+              try {
+                await Supabase.instance.client.auth.resetPasswordForEmail(
+                  email,
+                  redirectTo: 'io.supabase.photoideas://login-callback/',
+                );
+                if (mounted) {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Check your Email'),
+                      content: Text(
+                        'We have sent a password reset link to $email.\n\n'
+                        'Please check your inbox (and spam folder) and follow the link to reset your password.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              } on AuthException catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(e.message), backgroundColor: Colors.red),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('An unexpected error occurred'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Send Reset Link'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _login() async {
@@ -75,6 +164,41 @@ class _LoginScreenState extends State<LoginScreen> {
             const SnackBar(content: Text('An unexpected error occurred'), backgroundColor: Colors.red),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _googleSignIn() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : 'io.supabase.photoideas://login-callback/',
+      );
+      
+      // Note: On Windows/Web this opens a browser. On Mobile it might open a custom tab.
+      // The authentication flow completes when the app is re-opened via Deep Link
+      // which is handled by the auth state listener in initState.
+      
+    } on Exception catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google Sign In Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      // For OAuth, we don't strictly set isLoading false immediately because
+      // the user leaves the app. However, if they come back without logging in, we should reset it.
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
@@ -216,7 +340,21 @@ class _LoginScreenState extends State<LoginScreen> {
                               return null;
                             },
                           ),
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton(
+                              onPressed: _showForgotPasswordDialog,
+                              child: Text(
+                                "Forgot Password?",
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.9),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
                           SizedBox(
                             width: double.infinity,
                             height: 50,
@@ -243,6 +381,30 @@ class _LoginScreenState extends State<LoginScreen> {
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton.icon(
+                              onPressed: _isLoading ? null : _googleSignIn,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFDB4437), // Google Red
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                elevation: 0,
+                              ),
+                              icon: const Icon(Icons.g_mobiledata, size: 28),
+                              label: const Text(
+                                "Sign in with Google",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),
