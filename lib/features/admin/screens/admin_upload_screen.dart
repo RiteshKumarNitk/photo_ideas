@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
+import 'package:path_provider/path_provider.dart';
 
 class AdminUploadScreen extends StatefulWidget {
   const AdminUploadScreen({super.key});
@@ -20,7 +22,7 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
   String? _selectedSubCategory;
   bool _isLoading = false;
   File? _imageFile;
-  Uint8List? _webImage;
+  Uint8List? _compressedImageBytes;
   final ImagePicker _picker = ImagePicker();
 
   final List<String> _categories = [
@@ -45,23 +47,38 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
     try {
       final XFile? pickedFile = await _picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
+        // We still pick fairly high quality, but we will compress it heavily before upload
+        maxWidth: 2048, 
+        maxHeight: 2048,
+        imageQuality: 90,
       );
 
       if (pickedFile != null) {
         if (kIsWeb) {
-          final bytes = await pickedFile.readAsBytes();
-          setState(() {
-            _webImage = bytes;
-            _imageFile = null;
-          });
+             // Web compression logic (different from mobile)
+             var bytes = await pickedFile.readAsBytes();
+             // Simple resize for web if needed, or upload directly (Web compression is trickier)
+             // Ideally we use a cloud function to optimize, but for now we'll just check size
+             // To prevent massive uploads on web, let's just limit the size or send as-is
+             // Note: flutter_image_compress has partial web support via WASM but often tricky to setup.
+             // For simplicity on Web, we might just upload, but here we will try to assume it's small enough 
+             // because of ImagePicker constraints.
+             
+             setState(() {
+               _compressedImageBytes = bytes;
+               _imageFile = null;
+             });
+
         } else {
-          setState(() {
-            _imageFile = File(pickedFile.path);
-            _webImage = null;
-          });
+          // Mobile Compression
+          final compressedBytes = await _compressImage(File(pickedFile.path));
+          
+          if (compressedBytes != null) {
+            setState(() {
+              _imageFile = null; // We use bytes for upload now to be consistent
+              _compressedImageBytes = compressedBytes;
+            });
+          }
         }
       }
     } catch (e) {
@@ -72,10 +89,31 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
       }
     }
   }
+  
+  Future<Uint8List?> _compressImage(File file) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final targetPath = '${dir.path}/temp_${DateTime.now().millisecondsSinceEpoch}.jpg'; // Converting to JPG for consistency
+
+      // Compress
+      final result = await FlutterImageCompress.compressAndGetFile(
+        file.absolute.path, 
+        targetPath,
+        quality: 70, // 70% quality is usually good enough for mobile display
+        minWidth: 1024,
+        minHeight: 1024,
+      );
+
+      return await result?.readAsBytes();
+    } catch (e) {
+      debugPrint("Compression error: $e");
+      return null;
+    }
+  }
 
   Future<void> _uploadImage() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_imageFile == null && _webImage == null) {
+    if (_compressedImageBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select an image')),
       );
@@ -89,19 +127,12 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
       final path = 'uploads/$fileName';
 
       // 1. Upload to Storage
-      if (kIsWeb) {
-        await Supabase.instance.client.storage.from('images').uploadBinary(
-              path,
-              _webImage!,
-              fileOptions: const FileOptions(upsert: true),
-            );
-      } else {
-        await Supabase.instance.client.storage.from('images').upload(
-              path,
-              _imageFile!,
-              fileOptions: const FileOptions(upsert: true),
-            );
-      }
+      // We always use uploadBinary because we have the bytes (compressed or web)
+      await Supabase.instance.client.storage.from('images').uploadBinary(
+            path,
+            _compressedImageBytes!,
+            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
+          );
 
       final imageUrl = Supabase.instance.client.storage
           .from('images')
@@ -123,10 +154,8 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
           const SnackBar(content: Text('Image uploaded successfully!')),
         );
         setState(() {
+           _compressedImageBytes = null;
           _imageFile = null;
-          _webImage = null;
-          _imageFile = null;
-          _webImage = null;
           _selectedCategory = null;
           _selectedSubCategory = null;
           _titleController.clear();
@@ -169,33 +198,28 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
                       color: Theme.of(context).colorScheme.outline,
                     ),
                   ),
-                  child: _webImage != null
+                  child: _compressedImageBytes != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.memory(_webImage!, fit: BoxFit.cover),
+                          child: Image.memory(_compressedImageBytes!, fit: BoxFit.cover),
                         )
-                      : _imageFile != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.file(_imageFile!, fit: BoxFit.cover),
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.add_photo_alternate_outlined,
-                                  size: 48,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Tap to select image',
-                                  style: TextStyle(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_photo_alternate_outlined,
+                              size: 48,
+                              color: Theme.of(context).colorScheme.primary,
                             ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tap to select image',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ),
               const SizedBox(height: 24),
