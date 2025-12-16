@@ -6,6 +6,7 @@ import 'admin_quotes_tab.dart';
 import 'admin_assets_screen.dart';
 import 'admin_data_sync_screen.dart';
 import 'admin_data_clear_screen.dart';
+import 'admin_category_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -96,6 +97,16 @@ class AdminDashboardScreen extends StatelessWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const AdminDataSyncScreen()),
+                  ),
+                ),
+                _buildMenuCard(
+                  context,
+                  title: 'Manage Categories',
+                  icon: Icons.category,
+                  color: Colors.tealAccent,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminCategoryScreen()),
                   ),
                 ),
                 _buildMenuCard(

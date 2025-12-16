@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../core/services/supabase_service.dart';
 
 class AdminUploadScreen extends StatefulWidget {
   const AdminUploadScreen({super.key});
@@ -18,30 +19,41 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
   final _titleController = TextEditingController();
   final _subtitleController = TextEditingController();
   final _posingInstructionsController = TextEditingController();
-  String? _selectedCategory;
-  String? _selectedSubCategory;
+  List<Map<String, dynamic>> _categories = [];
+  List<Map<String, dynamic>> _subCategories = [];
+  String? _selectedCategoryName;
+  int? _selectedCategoryId;
+  String? _selectedSubCategoryName;
+  
   bool _isLoading = false;
   File? _imageFile;
   Uint8List? _compressedImageBytes;
   final ImagePicker _picker = ImagePicker();
 
-  final List<String> _categories = [
-    'Haircut Ideas',
-    'Wedding Photos',
-    'Baby Photos',
-    'Nature',
-    'Travel',
-    'Architecture',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
 
-  final Map<String, List<String>> _subCategories = {
-    'Haircut Ideas': ['Men', 'Women', 'Short', 'Long'],
-    'Wedding Photos': ['Couple', 'Bride', 'Groom', 'Decor'],
-    'Baby Photos': ['Newborn', 'Family', 'Outdoor'],
-    'Nature': ['Landscape', 'Forest', 'Beach'],
-    'Travel': ['City', 'Adventure', 'Beach'],
-    'Architecture': ['Modern', 'Historic'],
-  };
+  Future<void> _loadCategories() async {
+    final categories = await SupabaseService.getCategories();
+    if (mounted) {
+      setState(() {
+        _categories = categories;
+      });
+    }
+  }
+
+  Future<void> _loadSubCategories(int categoryId) async {
+    final subCategories = await SupabaseService.getSubCategories(categoryId);
+    if (mounted) {
+      setState(() {
+        _subCategories = subCategories;
+        _selectedSubCategoryName = null; 
+      });
+    }
+  }
 
   Future<void> _pickImage() async {
     try {
@@ -141,8 +153,8 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
       // 2. Insert into Database
       await Supabase.instance.client.from('images').insert({
         'url': imageUrl,
-        'category': _selectedCategory,
-        'sub_category': _selectedSubCategory,
+        'category': _selectedCategoryName,
+        'sub_category': _selectedSubCategoryName,
         'title': _titleController.text.trim(),
         'subtitle': _subtitleController.text.trim(),
         'posing_instructions': _posingInstructionsController.text.trim(),
@@ -156,8 +168,9 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
         setState(() {
            _compressedImageBytes = null;
           _imageFile = null;
-          _selectedCategory = null;
-          _selectedSubCategory = null;
+          _selectedCategoryName = null;
+          _selectedCategoryId = null;
+          _selectedSubCategoryName = null;
           _titleController.clear();
           _subtitleController.clear();
           _posingInstructionsController.clear();
@@ -263,59 +276,63 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
                 },
               ),
               const SizedBox(height: 24),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
+              DropdownButtonFormField<int>(
+                value: _selectedCategoryId,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.category),
                 ),
                 items: _categories
-                    .map((category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
+                    .map((category) => DropdownMenuItem<int>(
+                          value: category['id'],
+                          child: Text(category['name']),
                         ))
                     .toList(),
                 onChanged: (value) {
                   setState(() {
-                    _selectedCategory = value;
-                    _selectedSubCategory = null; // Reset sub-category
+                    _selectedCategoryId = value;
+                    _selectedCategoryName = _categories.firstWhere((c) => c['id'] == value)['name'];
+                    _subCategories = []; // Clear subcategories until loaded
+                    _selectedSubCategoryName = null; 
                   });
+                  if (value != null) {
+                    _loadSubCategories(value);
+                  }
                 },
                 validator: (value) {
-                  if (value == null || value.isEmpty) {
+                  if (value == null) {
                     return 'Please select a category';
                   }
                   return null;
                 },
               ),
               const SizedBox(height: 16),
-              if (_selectedCategory != null && _subCategories.containsKey(_selectedCategory))
-                DropdownButtonFormField<String>(
-                  value: _selectedSubCategory,
-                  decoration: const InputDecoration(
-                    labelText: 'Sub-Category',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.subdirectory_arrow_right),
-                  ),
-                  items: _subCategories[_selectedCategory]!
-                      .map((sub) => DropdownMenuItem(
-                            value: sub,
-                            child: Text(sub),
-                          ))
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedSubCategory = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select a sub-category';
-                    }
-                    return null;
-                  },
+              DropdownButtonFormField<String>(
+                value: _selectedSubCategoryName,
+                decoration: const InputDecoration(
+                  labelText: 'Sub-Category',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.subdirectory_arrow_right),
                 ),
+                items: _subCategories
+                    .map((sub) => DropdownMenuItem<String>(
+                          value: sub['name'],
+                          child: Text(sub['name']),
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedSubCategoryName = value;
+                  });
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please select a sub-category';
+                  }
+                  return null;
+                },
+              ),
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: _isLoading ? null : _uploadImage,
