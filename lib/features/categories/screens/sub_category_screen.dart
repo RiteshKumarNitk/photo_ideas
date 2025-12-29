@@ -233,3 +233,4 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
     return Icons.category;
   }
 }
+

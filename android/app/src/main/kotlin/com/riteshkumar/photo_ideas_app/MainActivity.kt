@@ -1,4 +1,4 @@
-package com.example.photo_ideas_app
+package com.riteshkumar.photo_ideas_app
 
 import io.flutter.embedding.android.FlutterActivity
 
