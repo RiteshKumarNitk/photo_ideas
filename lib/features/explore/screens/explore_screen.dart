@@ -102,73 +102,99 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Note: No Scaffold here because it's used inside HomeScreen's body Stack
-    return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 60, 16, 16), // Top padding for transparent AppBar
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: TextField(
-                  controller: _searchController,
-                  onChanged: _filterImages,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: "Search ideas...",
-                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-                    prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.6)),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 80, left: 20, right: 20, bottom: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Explore",
+                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -1,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 24),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: TextField(
+                          controller: _searchController,
+                          onChanged: (value) => _applyFilters(),
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: "Search ideas...",
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                            prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                            filled: true,
+                            fillColor: Colors.transparent, // Color provided by Container
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: MasonryGridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                itemCount: _filteredImages.length,
-                itemBuilder: (context, index) {
-                  final photo = _filteredImages[index];
-                  return GestureDetector(
-                    onTap: () {
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverMasonryGrid.count(
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childCount: _displayedImages.length,
+              itemBuilder: (context, index) {
+                final photo = _displayedImages[index];
+                return ScaleButton(
+                   onPressed: () {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => FullscreenImageViewer(photo: photo),
                         ),
                       );
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: photo.url,
-                        placeholder: (context, url) => Shimmer.fromColors(
-                          baseColor: Colors.grey[800]!,
-                          highlightColor: Colors.grey[700]!,
-                          child: Container(
-                            color: Colors.grey[800],
-                            height: (index % 2 == 0) ? 200 : 300,
-                          ),
+                   },
+                   child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: CachedNetworkImage(
+                      imageUrl: photo.url,
+                      placeholder: (context, url) => Shimmer.fromColors(
+                        baseColor: Colors.grey[800]!,
+                        highlightColor: Colors.grey[700]!,
+                        child: Container(
+                          color: Colors.grey[800],
+                          height: (index % 2 == 0) ? 200 : 300,
                         ),
-                        errorWidget: (context, url, error) => const Icon(Icons.error),
-                        fit: BoxFit.cover,
                       ),
+                      errorWidget: (context, url, error) => Container(
+                        height: 200, 
+                        color: Colors.white10,
+                        child: const Icon(Icons.error, color: Colors.white54),
+                      ),
+                      fit: BoxFit.cover,
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
     );

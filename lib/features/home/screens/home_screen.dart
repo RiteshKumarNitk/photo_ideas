@@ -5,6 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../utils/data_source.dart';
 import '../../../core/utils/page_transitions.dart';
 import '../../../core/models/photo_model.dart';
+import '../../../core/services/supabase_service.dart';
+import '../../../core/widgets/scale_button.dart';
+import '../../../core/widgets/shimmer_placeholder.dart';
 import '../../categories/screens/category_grid_screen.dart';
 import '../../categories/screens/sub_category_screen.dart';
 import '../../quotes/screens/quotes_screen.dart';
@@ -29,14 +32,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _screens = [
     const HomeContent(),
-    const DiscoveryScreen(),
     const ExploreScreen(),
     const MagicCameraScreen(),
+    const DiscoveryScreen(),
     const ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
-    if (index == 3) {
+    if (index == 2) {
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const MagicCameraScreen()),
@@ -124,11 +127,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: 'Home',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.style_outlined, color: Colors.white70),
-                    selectedIcon: Icon(Icons.style, color: Colors.black),
-                    label: 'Swipe',
-                  ),
-                  NavigationDestination(
                     icon: Icon(Icons.search_outlined, color: Colors.white70),
                     selectedIcon: Icon(Icons.search, color: Colors.black),
                     label: 'Search',
@@ -137,6 +135,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icon(Icons.camera_alt_outlined, color: Colors.white70),
                     selectedIcon: Icon(Icons.camera_alt, color: Colors.black),
                     label: 'Magic',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.style_outlined, color: Colors.white70),
+                    selectedIcon: Icon(Icons.style, color: Colors.black),
+                    label: 'Swipe',
                   ),
                   NavigationDestination(
                     icon: Icon(Icons.person_outline, color: Colors.white70),
@@ -564,72 +567,20 @@ class _HomeContentState extends State<HomeContent> {
             crossAxisSpacing: 16,
             childCount: _allCategories.length,
             itemBuilder: (context, index) {
-              // Map index to category data
-              switch (index) {
-                case 0:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Haircut Ideas",
-                    Icons.content_cut,
-                    const Color(0xFF6C63FF),
-                    () => _navigateToCategory(context, "Haircut Ideas", [], filters: {}),
-                  );
-                case 1:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Wedding",
-                    Icons.favorite,
-                    const Color(0xFFFF4081),
-                    () => _navigateToCategory(context, "Wedding Photos", [], filters: {}),
-                  );
-                case 2:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Baby Photos",
-                    Icons.child_care,
-                    const Color(0xFFFF9100),
-                    () => _navigateToCategory(context, "Baby Photos", [], filters: {}),
-                  );
-                case 3:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Nature",
-                    Icons.landscape,
-                    const Color(0xFF00E676),
-                    () => _navigateToCategory(context, "Nature", [], filters: {}),
-                  );
-                case 4:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Travel",
-                    Icons.flight,
-                    const Color(0xFF00B0FF),
-                    () => _navigateToCategory(context, "Travel", [], filters: {}),
-                  );
-                case 5:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Architecture",
-                    Icons.apartment,
-                    const Color(0xFF9E9E9E),
-                    () => _navigateToCategory(context, "Architecture", [], filters: {}),
-                  );
-                case 6:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Quotes",
-                    Icons.format_quote,
-                    const Color(0xFFAA00FF),
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => QuotesScreen(fallbackQuotes: const []),
-                      ),
-                    ),
-                  );
-                default:
-                  return const SizedBox.shrink();
-              }
+              final category = _allCategories[index];
+              return _buildModernCategoryCard(
+                context,
+                category['name'],
+                category['icon'],
+                category['color'],
+                () {
+                  if (category['name'] == "Quotes") {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => QuotesScreen(fallbackQuotes: const [])));
+                  } else {
+                    _navigateToCategory(context, category['name'], [], filters: {});
+                  }
+                },
+              );
             },
           ),
         ),
