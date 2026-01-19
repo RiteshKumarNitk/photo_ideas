@@ -20,7 +20,13 @@ class ExploreScreen extends StatefulWidget {
 class _ExploreScreenState extends State<ExploreScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<PhotoModel> _allImages = [];
-  List<PhotoModel> _filteredImages = [];
+  List<PhotoModel> _displayedImages = [];
+  bool _isGridMode = true;
+  String _selectedFilter = 'All';
+
+  final List<String> _filters = [
+    'All', 'Wedding', 'Nature', 'Travel', 'Baby', 'Architecture', 'Haircut', 'Portrait'
+  ];
 
   @override
   void initState() {
@@ -31,13 +37,15 @@ class _ExploreScreenState extends State<ExploreScreen> {
   Future<void> _loadImages() async {
     // Try to fetch from Supabase
     List<String> imageUrls = await SupabaseService.getAllImages();
-    List<PhotoModel> images = imageUrls.map((url) => PhotoModel(
-      url: url,
-      category: 'Explore',
-      posingInstructions: 'Explore different angles and lighting.',
-    )).toList();
+    List<PhotoModel> images = [];
 
-    if (images.isEmpty) {
+    if (imageUrls.isNotEmpty) {
+       images = imageUrls.map((url) => PhotoModel(
+        url: url,
+        category: 'Explore', // We might want to fetch real categories later
+        posingInstructions: 'Explore different angles and lighting.',
+      )).toList();
+    } else {
       // Fallback to local data
       images = [
         ...DataSource.haircutImages,
@@ -53,33 +61,55 @@ class _ExploreScreenState extends State<ExploreScreen> {
       setState(() {
         _allImages = images;
         _allImages.shuffle();
-        _filteredImages = _allImages;
+        _applyFilters();
       });
     }
   }
 
-  void _filterImages(String query) {
-    if (query.isEmpty) {
-      setState(() {
-        _filteredImages = _allImages;
-      });
-    } else {
-      // Mock search: just show a subset
-      setState(() {
-        _filteredImages = _allImages.take(10).toList(); 
-      });
-    }
+  void _applyFilters() {
+    String query = _searchController.text.toLowerCase();
+    
+    setState(() {
+      _displayedImages = _allImages.where((image) {
+        // Filter by Search Query
+        bool matchesQuery = query.isEmpty || image.category.toLowerCase().contains(query) || 
+                            image.posingInstructions.toLowerCase().contains(query);
+        
+        // Filter by Category Chip (Approximate match since we just have urls mostly from simple fetch)
+        // If the 'category' field in PhotoModel is accurate, use it. 
+        // Note: In _loadImages, network images get 'Explore' as category.
+        // For local images, they have correct categories. 
+        // Ideally, we'd fetch category with image from Supabase.
+        
+        bool matchesFilter = _selectedFilter == 'All';
+        if (!matchesFilter) {
+           // For now, this might only work well with local data or if we update the fetch logic
+           // But let's check the category field.
+           matchesFilter = image.category.toLowerCase().contains(_selectedFilter.toLowerCase());
+        }
+
+        return matchesQuery && matchesFilter;
+      }).toList();
+    });
+  }
+
+  void _onFilterSelected(String filter) {
+    setState(() {
+      _selectedFilter = filter;
+      _applyFilters();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return CustomScrollView(
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 110, 16, 16), // Top padding for visual balance with Home Header
+    // Note: No Scaffold here because it's used inside HomeScreen's body Stack
+    return SafeArea(
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 60, 16, 16), // Top padding for transparent AppBar
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: TextField(
@@ -91,59 +121,56 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
                     prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.6)),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.15),
+                    fillColor: Colors.white.withOpacity(0.1),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          sliver: SliverMasonryGrid.count(
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childCount: _filteredImages.length,
-            itemBuilder: (context, index) {
-              final photo = _filteredImages[index];
-              return ScaleButton(
-                 onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => FullscreenImageViewer(photo: photo), // Or ImageDetailScreen if you prefer
-                      ),
-                    );
-                 },
-                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: CachedNetworkImage(
-                    imageUrl: photo.url,
-                    placeholder: (context, url) => Shimmer.fromColors(
-                      baseColor: Colors.grey[800]!,
-                      highlightColor: Colors.grey[700]!,
-                      child: Container(
-                        color: Colors.grey[800],
-                        height: (index % 2 == 0) ? 200 : 300,
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: MasonryGridView.count(
+                crossAxisCount: 2,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                itemCount: _filteredImages.length,
+                itemBuilder: (context, index) {
+                  final photo = _filteredImages[index];
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FullscreenImageViewer(photo: photo),
+                        ),
+                      );
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: photo.url,
+                        placeholder: (context, url) => Shimmer.fromColors(
+                          baseColor: Colors.grey[800]!,
+                          highlightColor: Colors.grey[700]!,
+                          child: Container(
+                            color: Colors.grey[800],
+                            height: (index % 2 == 0) ? 200 : 300,
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => const Icon(Icons.error),
+                        fit: BoxFit.cover,
                       ),
                     ),
-                    errorWidget: (context, url, error) => Container(
-                        height: 200, 
-                        color: Colors.grey[900], 
-                        child: const Icon(Icons.broken_image, color: Colors.white54)
-                    ),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 100)), // Bottom padding
-      ],
+        ],
+      ),
     );
   }
 }

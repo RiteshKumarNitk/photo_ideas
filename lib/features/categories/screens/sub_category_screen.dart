@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/photo_model.dart';
-import '../../../core/widgets/scale_button.dart';
 import 'category_grid_screen.dart';
 
 class SubCategoryScreen extends StatefulWidget {
@@ -30,41 +29,117 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
   void initState() {
     super.initState();
     _subCategories = widget.subCategories;
-    if (_subCategories.isEmpty) {
-      _fetchSubCategories();
-    }
+    // Always fetch dynamic data to merge with local data
+    _fetchSubCategories();
   }
 
   Future<void> _fetchSubCategories() async {
     setState(() => _isLoading = true);
     try {
-      final response = await Supabase.instance.client
-          .from('images')
-          .select()
-          .eq('category', widget.title);
+      // 1. Initialize with existing local subcategories
+      final Map<String, List<PhotoModel>> grouped = Map.from(widget.subCategories);
 
-      final List<PhotoModel> images = (response as List)
+      // 2. Fetch Category ID and Explicit Subcategories using Service
+      try {
+        final allCategories = await SupabaseService.getCategories();
+        
+        Map<String, dynamic> category = {};
+        for (var cat in allCategories) {
+          if (cat['name'].toString().toLowerCase() == widget.title.toLowerCase()) {
+            category = cat;
+            break;
+          }
+        }
+
+        if (category.isNotEmpty) {
+          final int categoryId = category['id'];
+          final subCats = await SupabaseService.getSubCategories(categoryId);
+          
+          for (var sub in subCats) {
+            String subName = sub['name'];
+            if (!grouped.containsKey(subName)) {
+              grouped[subName] = [];
+            }
+          }
+        } else {
+             // Fallback: Try removing " Photos" if present
+             if (widget.title.contains(' Photos')) {
+                 final simplified = widget.title.replaceAll(' Photos', '').trim();
+                 
+                 Map<String, dynamic> catSimple = {};
+                 for (var cat in allCategories) {
+                    if (cat['name'].toString().toLowerCase() == simplified.toLowerCase()) {
+                       catSimple = cat;
+                       break;
+                    }
+                 }
+
+                 if (catSimple.isNotEmpty) {
+                    final int catId = catSimple['id'];
+                    final subCats = await SupabaseService.getSubCategories(catId);
+                    for (var sub in subCats) {
+                      String subName = sub['name'];
+                      if (!grouped.containsKey(subName)) {
+                        grouped[subName] = [];
+                      }
+                    }
+                 }
+             }
+        }
+      } catch (e) {
+        debugPrint('Error fetching explicit subcategories via service: $e');
+      }
+
+      // 3. Fetch images from 'images' table
+      // We still need the images to populate the folders
+      String simplifiedTitle = widget.title;
+      bool hasSimplified = false;
+      if (widget.title.contains(' Photos')) {
+        simplifiedTitle = widget.title.replaceAll(' Photos', '').trim();
+        hasSimplified = true;
+      }
+
+      dynamic imageResponse;
+      if (hasSimplified) {
+        imageResponse = await Supabase.instance.client
+            .from('images')
+            .select()
+            .or('category.eq.${widget.title},category.eq.$simplifiedTitle');
+      } else {
+        imageResponse = await Supabase.instance.client
+            .from('images')
+            .select()
+            .eq('category', widget.title);
+      }
+
+      final List<PhotoModel> images = (imageResponse as List)
           .map((item) => PhotoModel.fromJson(item))
           .toList();
 
-      // Group by sub_category
-      final Map<String, List<PhotoModel>> grouped = {};
-      
-      // Add 'All' category implicitly if needed, or just rely on sub_categories
-      // The Sync logic added 'sub_category' field.
-      
+      // 4. Distribute images into groups
       for (var img in images) {
-        // We need to access the raw JSON to get sub_category as it might not be in PhotoModel yet
-        // Wait, PhotoModel doesn't have sub_category field in the version I saw earlier.
-        // I need to check PhotoModel or use the raw response for grouping.
-        // Let's check the raw response item for 'sub_category'.
-        final rawItem = response.firstWhere((element) => element['url'] == img.url, orElse: () => {});
-        final subCat = rawItem['sub_category'] as String? ?? 'General';
+        // Find raw item to get sub_category
+        Map<String, dynamic> rawItem = {};
+        for (var item in (imageResponse as List)) {
+           if (item['url'] == img.url) {
+             rawItem = item;
+             break;
+           }
+        }
+        
+        // Fallback logic for sub_category
+        final subCat = rawItem['sub_category'] != null ? rawItem['sub_category'] as String : 'General';
         
         if (!grouped.containsKey(subCat)) {
+          // Only add 'General' if we have images for it, or if it was explicitly defined (unlikely for General)
           grouped[subCat] = [];
         }
-        grouped[subCat]!.add(img);
+        
+        // Check for duplicates before adding
+        final exists = grouped[subCat]!.any((element) => element.url == img.url);
+        if (!exists) {
+          grouped[subCat]!.add(img);
+        }
       }
 
       if (mounted) {
@@ -228,3 +303,4 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
     return Icons.category;
   }
 }
+

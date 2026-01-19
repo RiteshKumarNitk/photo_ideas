@@ -5,6 +5,60 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class SupabaseService {
   static final SupabaseClient client = Supabase.instance.client;
 
+  // Fetch existing categories
+  static Future<List<Map<String, dynamic>>> getCategories() async {
+    try {
+      final response = await client
+          .from('categories')
+          .select('id, name')
+          .order('name', ascending: true);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+      return [];
+    }
+  }
+
+  // Fetch subcategories for a category
+  static Future<List<Map<String, dynamic>>> getSubCategories(int categoryId) async {
+    try {
+      final response = await client
+          .from('sub_categories')
+          .select('id, name')
+          .eq('category_id', categoryId)
+          .order('name', ascending: true);
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching subcategories: $e');
+      return [];
+    }
+  }
+
+  // Add a new category
+  static Future<void> addCategory(String name) async {
+    await client.from('categories').insert({'name': name});
+  }
+
+  // Add a new subcategory
+  static Future<void> addSubCategory(int categoryId, String name) async {
+    await client.from('sub_categories').insert({
+      'category_id': categoryId,
+      'name': name,
+    });
+  }
+
+  // Delete category
+  static Future<void> deleteCategory(int id) async {
+    await client.from('categories').delete().eq('id', id);
+  }
+
+  // Delete subcategory
+  static Future<void> deleteSubCategory(int id) async {
+    await client.from('sub_categories').delete().eq('id', id);
+  }
+
   // Fetch images by category
   static Future<List<String>> getImagesByCategory(String category) async {
     try {

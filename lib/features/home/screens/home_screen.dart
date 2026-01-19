@@ -5,8 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../utils/data_source.dart';
 import '../../../core/utils/page_transitions.dart';
 import '../../../core/models/photo_model.dart';
-import '../../../core/widgets/scale_button.dart';
-import '../../../core/widgets/shimmer_placeholder.dart';
 import '../../categories/screens/category_grid_screen.dart';
 import '../../categories/screens/sub_category_screen.dart';
 import '../../quotes/screens/quotes_screen.dart';
@@ -303,23 +301,36 @@ class HomeContent extends StatefulWidget {
 
 class _HomeContentState extends State<HomeContent> {
   List<PhotoModel> _trendingImages = [];
+  List<Map<String, dynamic>> _allCategories = [];
   bool _isLoading = true;
+
+  // Style configuration for known categories (used for icons and colors only)
+  final Map<String, Map<String, dynamic>> _categoryStyles = {
+    "haircut": {"icon": Icons.content_cut, "color": const Color(0xFF6C63FF)},
+    "wedding": {"icon": Icons.favorite, "color": const Color(0xFFFF4081)},
+    "baby": {"icon": Icons.child_care, "color": const Color(0xFFFF9100)},
+    "nature": {"icon": Icons.landscape, "color": const Color(0xFF00E676)},
+    "travel": {"icon": Icons.flight, "color": const Color(0xFF00B0FF)},
+    "architecture": {"icon": Icons.apartment, "color": const Color(0xFF9E9E9E)},
+    "quotes": {"icon": Icons.format_quote, "color": const Color(0xFFAA00FF)},
+  };
 
   @override
   void initState() {
     super.initState();
-    _loadImages();
+    _loadData();
   }
 
-  Future<void> _loadImages() async {
+  Future<void> _loadData() async {
     // Start with empty list to force DB fetch
     List<PhotoModel> images = [];
+    List<Map<String, dynamic>> dbCategoriesList = [];
 
     try {
-      // Fetch from Supabase
+      // 1. Fetch Trending Images
       final response = await Supabase.instance.client
           .from('images')
-          .select() // Select all fields to get posing instructions
+          .select() 
           .order('created_at', ascending: false)
           .limit(20);
       
@@ -330,13 +341,50 @@ class _HomeContentState extends State<HomeContent> {
       if (supabaseImages.isNotEmpty) {
         images.addAll(supabaseImages);
       }
+
+      // 2. Fetch Categories ONLY from Supabase (as requested)
+      final cats = await SupabaseService.getCategories();
+      
+      // Process database categories into UI models
+      for (var cat in cats) {
+        String name = cat['name'] as String;
+        String lowerName = name.toLowerCase();
+        
+        // Default style
+        IconData icon = Icons.category_outlined;
+        Color color = Colors.primaries[name.hashCode % Colors.primaries.length].withOpacity(0.7);
+
+        // Try to match with known styles
+        _categoryStyles.forEach((key, style) {
+           if (lowerName.contains(key)) {
+             icon = style['icon'];
+             color = style['color'];
+           }
+        });
+
+        dbCategoriesList.add({
+          "name": name,
+          "icon": icon,
+          "color": color,
+        });
+      }
+
+      // 3. Always add Quotes category
+      dbCategoriesList.add({
+        "name": "Quotes",
+        "icon": Icons.format_quote,
+        "color": const Color(0xFFAA00FF),
+      });
+
     } catch (e) {
-      debugPrint('Error fetching images: $e');
+      debugPrint('Error fetching data: $e');
     }
 
     if (mounted) {
       setState(() {
         _trendingImages = images;
+        // Show DB categories + Quotes
+        _allCategories = dbCategoriesList;
         _isLoading = false;
       });
     }
@@ -348,7 +396,7 @@ class _HomeContentState extends State<HomeContent> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 110, 20, 20),
+            padding: const EdgeInsets.fromLTRB(16, 100, 16, 16), // Top padding for transparent AppBar
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -448,49 +496,29 @@ class _HomeContentState extends State<HomeContent> {
                           margin: const EdgeInsets.only(right: 16),
                           child: Column(
                             children: [
-                              Stack(
-                                alignment: Alignment.bottomCenter,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(3),
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      gradient: LinearGradient(
-                                        colors: [Color(0xFFD500F9), Color(0xFFFFAB40)], // Vivid Gradient
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
-                                      ),
-                                    ),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(2),
-                                      decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
-                                      child: Hero(
-                                        tag: photo.url,
-                                        child: CircleAvatar(
-                                          radius: 32,
-                                          backgroundImage: NetworkImage(photo.url),
-                                        ),
-                                      ),
-                                    ),
+                              Container(
+                                padding: const EdgeInsets.all(3), // Border width
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const LinearGradient(
+                                    colors: [Colors.purple, Colors.orange],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
-                                  Positioned(
-                                    bottom: -6,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFFF1744),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(color: Colors.black, width: 2),
-                                      ),
-                                      child: const Text(
-                                        "NEW",
-                                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
-                                      ),
-                                    ),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.all(2), // Gap between border and image
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black, // Match background
+                                    shape: BoxShape.circle,
                                   ),
-                                ],
+                                  child: CircleAvatar(
+                                    radius: 32,
+                                    backgroundImage: NetworkImage(photo.url),
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 14),
+                              const SizedBox(height: 8),
                               SizedBox(
                                 width: 75,
                                 child: Text(
@@ -534,17 +562,73 @@ class _HomeContentState extends State<HomeContent> {
             crossAxisCount: 2,
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
-            childCount: 7,
+            childCount: _allCategories.length,
             itemBuilder: (context, index) {
+              // Map index to category data
               switch (index) {
-                case 0: return _buildModernCategoryCard(context, "Haircut Ideas", Icons.content_cut_rounded, const Color(0xFF6C63FF), () => _navigateToCategory(context, "Haircut Ideas", [], filters: {}));
-                case 1: return _buildModernCategoryCard(context, "Wedding", Icons.favorite_rounded, const Color(0xFFFF4081), () => _navigateToCategory(context, "Wedding Photos", [], filters: {}));
-                case 2: return _buildModernCategoryCard(context, "Baby Photos", Icons.child_care_rounded, const Color(0xFFFF9100), () => _navigateToCategory(context, "Baby Photos", [], filters: {}));
-                case 3: return _buildModernCategoryCard(context, "Nature", Icons.landscape_rounded, const Color(0xFF00E676), () => _navigateToCategory(context, "Nature", [], filters: {}));
-                case 4: return _buildModernCategoryCard(context, "Travel", Icons.flight_takeoff_rounded, const Color(0xFF00B0FF), () => _navigateToCategory(context, "Travel", [], filters: {}));
-                case 5: return _buildModernCategoryCard(context, "Architecture", Icons.location_city_rounded, const Color(0xFF9E9E9E), () => _navigateToCategory(context, "Architecture", [], filters: {}));
-                case 6: return _buildModernCategoryCard(context, "Quotes", Icons.format_quote_rounded, const Color(0xFFAA00FF), () => Navigator.push(context, MaterialPageRoute(builder: (context) => QuotesScreen(fallbackQuotes: const []))));
-                default: return const SizedBox.shrink();
+                case 0:
+                  return _buildGlassCategoryCard(
+                    context,
+                    "Haircut Ideas",
+                    Icons.content_cut,
+                    const Color(0xFF6C63FF),
+                    () => _navigateToCategory(context, "Haircut Ideas", [], filters: {}),
+                  );
+                case 1:
+                  return _buildGlassCategoryCard(
+                    context,
+                    "Wedding",
+                    Icons.favorite,
+                    const Color(0xFFFF4081),
+                    () => _navigateToCategory(context, "Wedding Photos", [], filters: {}),
+                  );
+                case 2:
+                  return _buildGlassCategoryCard(
+                    context,
+                    "Baby Photos",
+                    Icons.child_care,
+                    const Color(0xFFFF9100),
+                    () => _navigateToCategory(context, "Baby Photos", [], filters: {}),
+                  );
+                case 3:
+                  return _buildGlassCategoryCard(
+                    context,
+                    "Nature",
+                    Icons.landscape,
+                    const Color(0xFF00E676),
+                    () => _navigateToCategory(context, "Nature", [], filters: {}),
+                  );
+                case 4:
+                  return _buildGlassCategoryCard(
+                    context,
+                    "Travel",
+                    Icons.flight,
+                    const Color(0xFF00B0FF),
+                    () => _navigateToCategory(context, "Travel", [], filters: {}),
+                  );
+                case 5:
+                  return _buildGlassCategoryCard(
+                    context,
+                    "Architecture",
+                    Icons.apartment,
+                    const Color(0xFF9E9E9E),
+                    () => _navigateToCategory(context, "Architecture", [], filters: {}),
+                  );
+                case 6:
+                  return _buildGlassCategoryCard(
+                    context,
+                    "Quotes",
+                    Icons.format_quote,
+                    const Color(0xFFAA00FF),
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => QuotesScreen(fallbackQuotes: const []),
+                      ),
+                    ),
+                  );
+                default:
+                  return const SizedBox.shrink();
               }
             },
           ),
@@ -599,38 +683,16 @@ class _HomeContentState extends State<HomeContent> {
   }
 
   void _navigateToCategory(BuildContext context, String title, List<PhotoModel> images, {Map<String, List<PhotoModel>>? filters}) {
-    // List of categories that should have sub-categories
-    final subCategoryTitles = [
-      "Haircut Ideas", "Haircut",
-      "Wedding Photos", "Wedding",
-      "Baby Photos", "Baby",
-      "Nature",
-      "Travel",
-      "Architecture"
-    ];
-
-    if (subCategoryTitles.contains(title) || (filters != null && filters.isNotEmpty)) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SubCategoryScreen(
-            title: title,
-            allImages: images,
-            subCategories: filters ?? {},
-          ),
+    // Always navigate to SubCategoryScreen to check for dynamic subcategories
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => SubCategoryScreen(
+          title: title,
+          allImages: images, // This might be empty, SubCategoryScreen will fetch if needed
+          subCategories: filters ?? {}, // This might be empty, SubCategoryScreen will fetch
         ),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CategoryGridScreen(
-            title: title,
-            fallbackImages: images,
-            filters: filters,
-          ),
-        ),
-      );
-    }
+      ),
+    );
   }
 }
