@@ -7,6 +7,8 @@ import '../../../utils/data_source.dart';
 import '../../images/screens/fullscreen_image_viewer.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/models/photo_model.dart';
+import '../../../core/widgets/scale_button.dart';
+import 'discovery_screen.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -71,14 +73,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Note: No Scaffold here because it's used inside HomeScreen's body Stack
-    return SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 60, 16, 16), // Top padding for transparent AppBar
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 110, 16, 16), // Top padding for visual balance with Home Header
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                 child: TextField(
@@ -90,56 +91,59 @@ class _ExploreScreenState extends State<ExploreScreen> {
                     hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
                     prefixIcon: Icon(Icons.search, color: Colors.white.withOpacity(0.6)),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.1),
+                    fillColor: Colors.white.withOpacity(0.15),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   ),
                 ),
               ),
             ),
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: MasonryGridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                itemCount: _filteredImages.length,
-                itemBuilder: (context, index) {
-                  final photo = _filteredImages[index];
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => FullscreenImageViewer(photo: photo),
-                        ),
-                      );
-                    },
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: CachedNetworkImage(
-                        imageUrl: photo.url,
-                        placeholder: (context, url) => Shimmer.fromColors(
-                          baseColor: Colors.grey[800]!,
-                          highlightColor: Colors.grey[700]!,
-                          child: Container(
-                            color: Colors.grey[800],
-                            height: (index % 2 == 0) ? 200 : 300,
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => const Icon(Icons.error),
-                        fit: BoxFit.cover,
+        ),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          sliver: SliverMasonryGrid.count(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childCount: _filteredImages.length,
+            itemBuilder: (context, index) {
+              final photo = _filteredImages[index];
+              return ScaleButton(
+                 onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => FullscreenImageViewer(photo: photo), // Or ImageDetailScreen if you prefer
+                      ),
+                    );
+                 },
+                 child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CachedNetworkImage(
+                    imageUrl: photo.url,
+                    placeholder: (context, url) => Shimmer.fromColors(
+                      baseColor: Colors.grey[800]!,
+                      highlightColor: Colors.grey[700]!,
+                      child: Container(
+                        color: Colors.grey[800],
+                        height: (index % 2 == 0) ? 200 : 300,
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
+                    errorWidget: (context, url, error) => Container(
+                        height: 200, 
+                        color: Colors.grey[900], 
+                        child: const Icon(Icons.broken_image, color: Colors.white54)
+                    ),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 100)), // Bottom padding
+      ],
     );
   }
 }

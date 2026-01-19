@@ -4,8 +4,11 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../images/screens/fullscreen_image_viewer.dart';
+import '../../images/screens/image_detail_screen.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/models/photo_model.dart';
+import '../../../core/widgets/scale_button.dart';
+import '../../../core/utils/page_transitions.dart';
 
 class CategoryGridScreen extends StatefulWidget {
   final String title;
@@ -171,17 +174,21 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
                         itemCount: _displayedImages.length,
                         itemBuilder: (context, index) {
                           final photo = _displayedImages[index];
-                          return GestureDetector(
-                            onTap: () {
+                          final heroTag = photo.url + index.toString();
+                          return ScaleButton(
+                            onPressed: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(
-                                  builder: (context) => FullscreenImageViewer(photo: photo),
+                                FadeRoute(
+                                  page: ImageDetailScreen(
+                                    photo: photo,
+                                    heroTag: heroTag,
+                                  ),
                                 ),
                               );
                             },
                             child: Hero(
-                              tag: photo.url + index.toString(),
+                              tag: heroTag,
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(12),
                                 child: CachedNetworkImage(

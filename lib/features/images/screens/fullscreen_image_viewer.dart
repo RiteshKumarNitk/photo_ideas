@@ -1,14 +1,17 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../utils/image_downloader.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/models/photo_model.dart';
+import 'magic_camera_screen.dart';
 
 class FullscreenImageViewer extends StatefulWidget {
   final PhotoModel photo;
+  final String? heroTag;
 
-  const FullscreenImageViewer({super.key, required this.photo});
+  const FullscreenImageViewer({super.key, required this.photo, this.heroTag});
 
   @override
   State<FullscreenImageViewer> createState() => _FullscreenImageViewerState();
@@ -109,47 +112,83 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
             imageProvider: NetworkImage(widget.photo.url),
             minScale: PhotoViewComputedScale.contained,
             maxScale: PhotoViewComputedScale.covered * 2,
-            heroAttributes: PhotoViewHeroAttributes(tag: widget.photo.url),
+            heroAttributes: PhotoViewHeroAttributes(tag: widget.heroTag ?? widget.photo.url),
           ),
           Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.9),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-              child: SafeArea(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Posing Tips",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+            bottom: 30,
+            left: 20,
+            right: 20,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: Colors.white.withOpacity(0.1)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "Posing Tips",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Container(
+                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                             decoration: BoxDecoration(
+                               color: Colors.white.withOpacity(0.2),
+                               borderRadius: BorderRadius.circular(20),
+                             ),
+                             child: const Text("AI Tip", style: TextStyle(color: Colors.white, fontSize: 12)),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      widget.photo.posingInstructions,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        height: 1.5,
+                      const SizedBox(height: 12),
+                      Text(
+                        widget.photo.posingInstructions,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 15,
+                          height: 1.5,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                             Navigator.push(
+                               context,
+                               MaterialPageRoute(
+                                 builder: (context) => MagicCameraScreen(photo: widget.photo),
+                               ),
+                             );
+                          },
+                          icon: const Icon(Icons.camera_enhance),
+                          label: const Text("Try with Magic Camera"),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

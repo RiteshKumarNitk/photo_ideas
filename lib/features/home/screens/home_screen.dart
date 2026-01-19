@@ -3,15 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../utils/data_source.dart';
+import '../../../core/utils/page_transitions.dart';
 import '../../../core/models/photo_model.dart';
+import '../../../core/widgets/scale_button.dart';
+import '../../../core/widgets/shimmer_placeholder.dart';
 import '../../categories/screens/category_grid_screen.dart';
 import '../../categories/screens/sub_category_screen.dart';
 import '../../quotes/screens/quotes_screen.dart';
 import '../widgets/category_card.dart';
 import '../../explore/screens/explore_screen.dart';
+import '../../explore/screens/discovery_screen.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../images/screens/fullscreen_image_viewer.dart';
 import '../../settings/screens/settings_screen.dart';
+import '../../images/screens/magic_camera_screen.dart';
+import '../../images/screens/image_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,11 +31,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _screens = [
     const HomeContent(),
+    const DiscoveryScreen(),
     const ExploreScreen(),
+    const MagicCameraScreen(),
     const ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
+    if (index == 3) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const MagicCameraScreen()),
+      );
+      return;
+    }
     setState(() {
       _selectedIndex = index;
     });
@@ -76,31 +91,63 @@ class _HomeScreenState extends State<HomeScreen> {
           _screens[_selectedIndex],
         ],
       ),
-      bottomNavigationBar: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: NavigationBar(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _onItemTapped,
-            backgroundColor: Colors.black.withOpacity(0.3),
-            indicatorColor: Colors.white.withOpacity(0.2),
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined, color: Colors.white70),
-                selectedIcon: Icon(Icons.home, color: Colors.white),
-                label: 'Home',
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+            child: Container(
+              height: 70, // Fixed height for modern look
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: Colors.white.withOpacity(0.2)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
               ),
-              NavigationDestination(
-                icon: Icon(Icons.explore_outlined, color: Colors.white70),
-                selectedIcon: Icon(Icons.explore, color: Colors.white),
-                label: 'Explore',
+              child: NavigationBar(
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: _onItemTapped,
+                backgroundColor: Colors.transparent, // Transparent to show container decoration
+                indicatorColor: Colors.white,
+                labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
+                height: 70,
+                elevation: 0,
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.home_outlined, color: Colors.white70),
+                    selectedIcon: Icon(Icons.home, color: Colors.black),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.style_outlined, color: Colors.white70),
+                    selectedIcon: Icon(Icons.style, color: Colors.black),
+                    label: 'Swipe',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.search_outlined, color: Colors.white70),
+                    selectedIcon: Icon(Icons.search, color: Colors.black),
+                    label: 'Search',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.camera_alt_outlined, color: Colors.white70),
+                    selectedIcon: Icon(Icons.camera_alt, color: Colors.black),
+                    label: 'Magic',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.person_outline, color: Colors.white70),
+                    selectedIcon: Icon(Icons.person, color: Colors.black),
+                    label: 'Profile',
+                  ),
+                ],
               ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline, color: Colors.white70),
-                selectedIcon: Icon(Icons.person, color: Colors.white),
-                label: 'Profile',
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -301,82 +348,154 @@ class _HomeContentState extends State<HomeContent> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 100, 16, 16), // Top padding for transparent AppBar
+            padding: const EdgeInsets.fromLTRB(20, 110, 20, 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Header
                 Text(
                   "Discover",
-                  style: Theme.of(context).textTheme.displaySmall?.copyWith(color: Colors.white),
+                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -1.0,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   "Find your next inspiration",
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white70),
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.white70,
+                    fontSize: 16,
+                  ),
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  "Trending",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+
+                // Search Bar (Visual)
+                GestureDetector(
+                  onTap: () {
+                     // Switch to Explore Tab (Index 1)
+                     // Since this is HomeContent, we need to notify parent. 
+                     // For now, simple visual.
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.1)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search, color: Colors.white70),
+                        const SizedBox(width: 12),
+                        const Text(
+                          "Search for ideas...",
+                          style: TextStyle(color: Colors.white54, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // New Arrivals
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "New Arrivals",
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward, color: Colors.white30, size: 20),
+                  ],
                 ),
                 const SizedBox(height: 16),
-                // Snapchat Story Strip Style
+                
+                // Story Strip
                 SizedBox(
                   height: 110,
                   child: _isLoading 
-                      ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                      ? ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: 5,
+                          itemBuilder: (context, index) => Padding(
+                            padding: const EdgeInsets.only(right: 16),
+                            child: Column(
+                              children: [
+                                ShimmerPlaceholder.circular(radius: 35),
+                                const SizedBox(height: 8),
+                                ShimmerPlaceholder.rectangular(width: 60, height: 10, borderRadius: 4),
+                              ],
+                            ),
+                          ),
+                        )
                       : _trendingImages.isEmpty 
-                          ? const Center(child: Text("No trending images", style: TextStyle(color: Colors.white70)))
+                          ? const Center(child: Text("No new images", style: TextStyle(color: Colors.white70)))
                           : ListView.builder(
                     scrollDirection: Axis.horizontal,
                     itemCount: _trendingImages.length,
                     itemBuilder: (context, index) {
                       final photo = _trendingImages[index];
-                      
-                      return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => FullscreenImageViewer(photo: photo),
-                            ),
-                          );
+                      return ScaleButton(
+                        onPressed: () {
+                          Navigator.push(context, FadeRoute(page: ImageDetailScreen(photo: photo)));
                         },
                         child: Container(
                           margin: const EdgeInsets.only(right: 16),
                           child: Column(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(3), // Border width
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
-                                    colors: [Colors.purple, Colors.orange],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                              Stack(
+                                alignment: Alignment.bottomCenter,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      gradient: LinearGradient(
+                                        colors: [Color(0xFFD500F9), Color(0xFFFFAB40)], // Vivid Gradient
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                      ),
+                                    ),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(2),
+                                      decoration: const BoxDecoration(color: Colors.black, shape: BoxShape.circle),
+                                      child: Hero(
+                                        tag: photo.url,
+                                        child: CircleAvatar(
+                                          radius: 32,
+                                          backgroundImage: NetworkImage(photo.url),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(2), // Gap between border and image
-                                  decoration: const BoxDecoration(
-                                    color: Colors.black, // Match background
-                                    shape: BoxShape.circle,
+                                  Positioned(
+                                    bottom: -6,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFF1744),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: Colors.black, width: 2),
+                                      ),
+                                      child: const Text(
+                                        "NEW",
+                                        style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                                      ),
+                                    ),
                                   ),
-                                  child: CircleAvatar(
-                                    radius: 32,
-                                    backgroundImage: NetworkImage(photo.url),
-                                  ),
-                                ),
+                                ],
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 14),
                               SizedBox(
-                                width: 70,
+                                width: 75,
                                 child: Text(
                                   photo.category,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                  ),
+                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   textAlign: TextAlign.center,
@@ -390,130 +509,85 @@ class _HomeContentState extends State<HomeContent> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  "Categories",
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+                
+                // Categories Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Categories",
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                    const Icon(Icons.grid_view, color: Colors.white30, size: 20),
+                  ],
                 ),
                 const SizedBox(height: 12),
               ],
             ),
           ),
         ),
+        
+        // Masonry Grid
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0),
           sliver: SliverMasonryGrid.count(
             crossAxisCount: 2,
             mainAxisSpacing: 16,
             crossAxisSpacing: 16,
             childCount: 7,
             itemBuilder: (context, index) {
-              // Map index to category data
               switch (index) {
-                case 0:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Haircut Ideas",
-                    Icons.content_cut,
-                    const Color(0xFF6C63FF),
-                    () => _navigateToCategory(context, "Haircut Ideas", [], filters: {}),
-                  );
-                case 1:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Wedding",
-                    Icons.favorite,
-                    const Color(0xFFFF4081),
-                    () => _navigateToCategory(context, "Wedding Photos", [], filters: {}),
-                  );
-                case 2:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Baby Photos",
-                    Icons.child_care,
-                    const Color(0xFFFF9100),
-                    () => _navigateToCategory(context, "Baby Photos", [], filters: {}),
-                  );
-                case 3:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Nature",
-                    Icons.landscape,
-                    const Color(0xFF00E676),
-                    () => _navigateToCategory(context, "Nature", [], filters: {}),
-                  );
-                case 4:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Travel",
-                    Icons.flight,
-                    const Color(0xFF00B0FF),
-                    () => _navigateToCategory(context, "Travel", [], filters: {}),
-                  );
-                case 5:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Architecture",
-                    Icons.apartment,
-                    const Color(0xFF9E9E9E),
-                    () => _navigateToCategory(context, "Architecture", [], filters: {}),
-                  );
-                case 6:
-                  return _buildGlassCategoryCard(
-                    context,
-                    "Quotes",
-                    Icons.format_quote,
-                    const Color(0xFFAA00FF),
-                    () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => QuotesScreen(fallbackQuotes: const []),
-                      ),
-                    ),
-                  );
-                default:
-                  return const SizedBox.shrink();
+                case 0: return _buildModernCategoryCard(context, "Haircut Ideas", Icons.content_cut_rounded, const Color(0xFF6C63FF), () => _navigateToCategory(context, "Haircut Ideas", [], filters: {}));
+                case 1: return _buildModernCategoryCard(context, "Wedding", Icons.favorite_rounded, const Color(0xFFFF4081), () => _navigateToCategory(context, "Wedding Photos", [], filters: {}));
+                case 2: return _buildModernCategoryCard(context, "Baby Photos", Icons.child_care_rounded, const Color(0xFFFF9100), () => _navigateToCategory(context, "Baby Photos", [], filters: {}));
+                case 3: return _buildModernCategoryCard(context, "Nature", Icons.landscape_rounded, const Color(0xFF00E676), () => _navigateToCategory(context, "Nature", [], filters: {}));
+                case 4: return _buildModernCategoryCard(context, "Travel", Icons.flight_takeoff_rounded, const Color(0xFF00B0FF), () => _navigateToCategory(context, "Travel", [], filters: {}));
+                case 5: return _buildModernCategoryCard(context, "Architecture", Icons.location_city_rounded, const Color(0xFF9E9E9E), () => _navigateToCategory(context, "Architecture", [], filters: {}));
+                case 6: return _buildModernCategoryCard(context, "Quotes", Icons.format_quote_rounded, const Color(0xFFAA00FF), () => Navigator.push(context, MaterialPageRoute(builder: (context) => QuotesScreen(fallbackQuotes: const []))));
+                default: return const SizedBox.shrink();
               }
             },
           ),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        const SliverToBoxAdapter(child: SizedBox(height: 120)), // Bottom padding for nav bar
       ],
     );
   }
 
-  Widget _buildGlassCategoryCard(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
+  Widget _buildModernCategoryCard(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap) {
+    return ScaleButton(
+      onPressed: onTap,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.2)),
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withOpacity(0.12)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Colors.white.withOpacity(0.15), Colors.white.withOpacity(0.05)],
+              ),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
+                    color: color.withOpacity(0.15),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(icon, size: 32, color: color),
+                  child: Icon(icon, size: 36, color: color),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: 0.5),
                   textAlign: TextAlign.center,
                 ),
               ],

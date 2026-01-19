@@ -1,14 +1,9 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import '../../../core/models/photo_model.dart';
-import 'category_grid_screen.dart';
-
-import 'dart:ui';
-import 'package:flutter/material.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/models/photo_model.dart';
+import '../../../core/widgets/scale_button.dart';
 import 'category_grid_screen.dart';
 
 class SubCategoryScreen extends StatefulWidget {
@@ -164,8 +159,8 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
     required int count,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
+    return ScaleButton(
+      onPressed: onTap,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: BackdropFilter(

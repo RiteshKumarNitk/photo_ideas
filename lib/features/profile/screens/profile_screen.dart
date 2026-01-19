@@ -8,6 +8,7 @@ import 'help_support_screen.dart';
 import 'edit_profile_screen.dart';
 import '../../admin/screens/admin_dashboard_screen.dart';
 import '../../settings/screens/settings_screen.dart';
+import '../../../core/widgets/scale_button.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -238,32 +239,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildGlassProfileOption(BuildContext context, IconData icon, String title, {bool isDestructive = false, VoidCallback? onTap}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
-            ),
-            child: ListTile(
-              leading: Icon(
-                icon,
-                color: isDestructive ? Colors.redAccent : Colors.white,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ScaleButton(
+        onPressed: onTap ?? () {},
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
               ),
-              title: Text(
-                title,
-                style: TextStyle(
-                  color: isDestructive ? Colors.redAccent : Colors.white,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    color: isDestructive ? Colors.redAccent : Colors.white,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        color: isDestructive ? Colors.redAccent : Colors.white,
+                        fontWeight: FontWeight.w500,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: Colors.white54),
+                ],
               ),
-              trailing: const Icon(Icons.chevron_right, color: Colors.white54),
-              onTap: onTap ?? () {},
             ),
           ),
         ),
