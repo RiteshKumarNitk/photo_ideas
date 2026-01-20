@@ -5,6 +5,9 @@ import '../../../core/models/photo_model.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:gal/gal.dart';
+import 'dart:io';
+import 'package:photo_view/photo_view.dart';
 
 class MagicCameraScreen extends StatefulWidget {
   final PhotoModel? photo;
@@ -36,6 +39,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
   
   bool _isSplitMode = false;
   bool _isLevelerActive = false;
+  bool _isGhostMode = false;
   double _deviceRoll = 0.0; // Rotation around Z/Y axis
   StreamSubscription? _sensorSubscription;
 
@@ -46,7 +50,13 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     _initCamera();
   }
 
+  int _selectedCameraIndex = 0;
+  XFile? _lastCapturedPhoto; // For Quick Review
+
+
+
   Future<void> _initCamera() async {
+    // ... existing permission check ...
     final status = await Permission.camera.request();
     if (status.isDenied) {
       if (mounted) {
@@ -62,8 +72,9 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
       _cameras = await availableCameras();
       if (_cameras.isEmpty) return;
 
+      // Use selected index
       _controller = CameraController(
-        _cameras.first,
+        _cameras[_selectedCameraIndex],
         ResolutionPreset.high,
         enableAudio: false,
       );
@@ -80,6 +91,90 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     } catch (e) {
       debugPrint("Camera error: $e");
     }
+  }
+
+  Future<void> _toggleCamera() async {
+    if (_cameras.length < 2) return;
+    
+    setState(() {
+      _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras.length;
+      _isInit = false; // Show loader while switching
+    });
+    
+    await _controller?.dispose();
+    await _initCamera();
+  }
+
+  // ... existing methods ...
+
+  Widget _buildBottomControls() {
+    return Positioned(
+      bottom: 40, left: 20, right: 20,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+           // Control Label
+           if (_isSplitMode) 
+            const Padding(padding: EdgeInsets.only(bottom: 10), child: Text("Split Mode", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
+           else if (!_isCountingDown)
+            const Padding(padding: EdgeInsets.only(bottom: 10), child: Text("Align subject with ghost", style: TextStyle(color: Colors.white70))),
+
+           // Opacity Slider only in Overlay Mode
+           if (!_isSplitMode)
+             Row(
+                children: [
+                  const Icon(Icons.opacity, color: Colors.white, size: 20),
+                  Expanded(child: Slider(value: _opacity, min: 0.1, max: 0.9, activeColor: Colors.yellowAccent, inactiveColor: Colors.white24, onChanged: (val) => setState(() => _opacity = val))),
+                ],
+             ),
+             
+           const SizedBox(height: 10),
+           
+           Row(
+             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+             children: [
+               // Quick Review (Left)
+               GestureDetector(
+                 onTap: () {
+                    if (_lastCapturedPhoto != null) {
+                         Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
+                             backgroundColor: Colors.black,
+                             appBar: AppBar(backgroundColor: Colors.transparent, leading: const BackButton(color: Colors.white)),
+                             body: PhotoView(imageProvider: FileImage(File(_lastCapturedPhoto!.path))),
+                         )));
+                    }
+                 },
+                 child: Container(
+                   width: 48, height: 48,
+                   decoration: BoxDecoration(
+                     color: Colors.black45,
+                     shape: BoxShape.circle,
+                     border: Border.all(color: Colors.white, width: 2),
+                     image: _lastCapturedPhoto != null 
+                        ? DecorationImage(image: FileImage(File(_lastCapturedPhoto!.path)), fit: BoxFit.cover)
+                        : null,
+                   ),
+                   child: _lastCapturedPhoto == null ? const Icon(Icons.photo_library, color: Colors.white, size: 24) : null,
+                 ),
+               ),
+               
+               // Shutter Button (Center)
+               FloatingActionButton(
+                 onPressed: _takePicture,
+                 backgroundColor: Colors.white,
+                 child: const Icon(Icons.camera, color: Colors.black, size: 36),
+               ),
+               
+               // Switch Camera (Right)
+               IconButton(
+                 onPressed: _toggleCamera,
+                 icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 30),
+               ),
+             ],
+           ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -110,6 +205,12 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
   void _toggleSplit() {
     setState(() {
       _isSplitMode = !_isSplitMode;
+    });
+  }
+
+  void _toggleGhost() {
+    setState(() {
+      _isGhostMode = !_isGhostMode;
     });
   }
 
@@ -180,9 +281,25 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
 
     try {
       final image = await _controller!.takePicture();
+      
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Photo saved to ${image.path}')));
+        setState(() {
+          _lastCapturedPhoto = image;
+        });
       }
+      
+      // Save to Gallery
+      try {
+        await Gal.putImage(image.path);
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo saved to Gallery! 📸')));
+        }
+      } catch (e) {
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to app but failed to save to gallery: $e')));
+        }
+      }
+
     } catch (e) {
       debugPrint("Error taking picture: $e");
     }
@@ -226,7 +343,12 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
           if (widget.photo != null)
             Opacity(
               opacity: _opacity,
-              child: Image.network(widget.photo!.url, fit: BoxFit.cover),
+              child: Image.network(
+                  widget.photo!.url, 
+                  fit: BoxFit.cover,
+                  color: _isGhostMode ? Colors.white : null,
+                  colorBlendMode: _isGhostMode ? BlendMode.difference : null,
+              ),
             ),
         ],
       ),
@@ -238,7 +360,13 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
       children: [
         Expanded(
           child: widget.photo != null 
-              ? Image.network(widget.photo!.url, fit: BoxFit.cover, width: double.infinity)
+              ? Image.network(
+                  widget.photo!.url, 
+                  fit: BoxFit.cover, 
+                  width: double.infinity,
+                  color: _isGhostMode ? Colors.white : null,
+                  colorBlendMode: _isGhostMode ? BlendMode.difference : null,
+              )
               : Container(color: Colors.black, child: const Center(child: Text("No Reference Photo", style: TextStyle(color: Colors.white)))),
         ),
         Expanded(
@@ -284,43 +412,17 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
               icon: Icon(Icons.vertical_split, color: _isSplitMode ? Colors.yellowAccent : Colors.white54),
               onPressed: _toggleSplit,
             ),
+             IconButton(
+              icon: Icon(Icons.contrast, color: _isGhostMode ? Colors.yellowAccent : Colors.white54),
+              onPressed: _toggleGhost,
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBottomControls() {
-    return Positioned(
-      bottom: 40, left: 20, right: 20,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-           // Control Label
-           if (_isSplitMode) 
-            const Padding(padding: EdgeInsets.only(bottom: 10), child: Text("Split Mode", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
-           else if (!_isCountingDown)
-            const Padding(padding: EdgeInsets.only(bottom: 10), child: Text("Align subject with ghost", style: TextStyle(color: Colors.white70))),
 
-           // Opacity Slider only in Overlay Mode
-           if (!_isSplitMode)
-             Row(
-                children: [
-                  const Icon(Icons.opacity, color: Colors.white, size: 20),
-                  Expanded(child: Slider(value: _opacity, min: 0.1, max: 0.9, activeColor: Colors.yellowAccent, inactiveColor: Colors.white24, onChanged: (val) => setState(() => _opacity = val))),
-                ],
-             ),
-             
-           const SizedBox(height: 10),
-           FloatingActionButton(
-             onPressed: _takePicture,
-             backgroundColor: Colors.white,
-             child: const Icon(Icons.camera, color: Colors.black, size: 36),
-           ),
-        ],
-      ),
-    );
-  }
 
   IconData _getFlashIcon() {
      switch (_flashMode) {
