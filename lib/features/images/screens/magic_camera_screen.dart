@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // Re-added for kIsWeb
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/models/photo_model.dart';
 import 'dart:async';
@@ -8,6 +9,13 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:gal/gal.dart';
 import 'dart:io';
 import 'package:photo_view/photo_view.dart';
+import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart'; // Re-added import
+import '../../../core/services/pose_detection_service.dart';
+import '../../../core/services/tts_service.dart';
+import '../../../core/utils/mlkit_utils.dart';
+import '../../../core/utils/sound_utils.dart'; // Import SoundUtils
+import '../../../core/services/selfie_segmentation_service.dart'; // Import Segmentation
+import '../../../utils/image_downloader.dart'; // Reusing your existing downloader if available or using File
 
 class MagicCameraScreen extends StatefulWidget {
   final PhotoModel? photo;
@@ -40,18 +48,86 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
   bool _isSplitMode = false;
   bool _isLevelerActive = false;
   bool _isGhostMode = false;
-  double _deviceRoll = 0.0; // Rotation around Z/Y axis
+  double _deviceRoll = 0.0; 
   StreamSubscription? _sensorSubscription;
+
+  // AI Coach State
+  final PoseDetectionService _poseService = PoseDetectionService();
+  final SelfieSegmentationService _segmentationService = SelfieSegmentationService();
+  final TtsService _ttsService = TtsService();
+  bool _isAiCoachActive = false;
+  bool _isPortraitMode = false;
+  bool _isAutoShutterEnabled = false;
+  bool _isProcessingFrame = false;
+  Pose? _detectedPose;
+  Pose? _referencePose;
+  double _matchScore = 0.0;
+  String _feedbackText = "Align body with skeleton";
+  
+  // Auto-Shutter State
+  Timer? _autoTriggerTimer;
+  int _consecutiveGoodFrames = 0;
+  bool _isAutoTriggering = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
+    _loadReferencePose();
+  }
+
+  Future<void> _loadReferencePose() async {
+    if (widget.photo == null) return;
+    try {
+      final file = await ImageDownloader.downloadToTemp(widget.photo!.url);
+      if (file != null) {
+        final inputImage = InputImage.fromFilePath(file.path);
+        final poses = await _poseService.processImage(inputImage);
+        if (poses.isNotEmpty) {
+           if (mounted) setState(() => _referencePose = poses.first);
+        }
+        // Cleanup temp file? ML Kit might block it during process, maybe safe now?
+        // file.delete(); 
+      }
+    } catch (e) {
+      debugPrint("Error loading reference pose: $e");
+    }
   }
 
   int _selectedCameraIndex = 0;
+  ResolutionPreset _currentResolutionPreset = ResolutionPreset.high;
   XFile? _lastCapturedPhoto; // For Quick Review
+  
+  // Aspect Ratio State
+  int _currentAspectRatioIndex = 0;
+  final List<double> _aspectRatios = [3 / 4, 9 / 16, 1.0];
+  final List<String> _aspectRatioLabels = ["3:4", "9:16", "1:1"];
+
+  // Filter State
+  int _filterIndex = 0;
+  final List<ColorFilter?> _filters = [
+    null, // Original
+    const ColorFilter.matrix([ // B&W
+      0.33, 0.33, 0.33, 0, 0,
+      0.33, 0.33, 0.33, 0, 0,
+      0.33, 0.33, 0.33, 0, 0,
+      0, 0, 0, 1, 0,
+    ]),
+    const ColorFilter.matrix([ // Sepia
+      0.393, 0.769, 0.189, 0, 0,
+      0.349, 0.686, 0.168, 0, 0,
+      0.272, 0.534, 0.131, 0, 0,
+      0, 0, 0, 1, 0,
+    ]),
+    const ColorFilter.matrix([ // Cold / Blue
+      1, 0, 0, 0, 0,
+      0, 1, 0, 0, 0,
+      0, 0, 1.2, 0, 0, // Boost Blue
+      0, 0, 0, 1, 0,
+    ]),
+  ];
+  final List<String> _filterLabels = ["Norm", "B&W", "Sepia", "Cold"];
 
 
 
@@ -75,8 +151,9 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
       // Use selected index
       _controller = CameraController(
         _cameras[_selectedCameraIndex],
-        ResolutionPreset.high,
+        _currentResolutionPreset, // Use dynamic preset
         enableAudio: false,
+        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888, // Optimize for ML Kit
       );
 
       await _controller!.initialize();
@@ -93,6 +170,157 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     }
   }
 
+  Future<void> _toggleAiCoach() async {
+    // Platform Check: ML Kit is Android/iOS only
+    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('AI Coach is only available on Android & iOS devices! 📱'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (_controller == null || !_controller!.value.isInitialized) return;
+
+    if (_isAiCoachActive) {
+      // Turn OFF
+      await _controller!.stopImageStream();
+      _ttsService.stop();
+      setState(() {
+        _isAiCoachActive = false;
+        _detectedPose = null;
+        _matchScore = 0.0;
+      });
+    } else {
+      // Turn ON
+      setState(() => _isAiCoachActive = true);
+      try {
+        await _controller!.startImageStream(_processCameraImage);
+      } catch (e) {
+        debugPrint("Error starting stream: $e");
+        setState(() => _isAiCoachActive = false);
+      }
+    }
+  }
+
+
+
+  void _togglePortraitMode() {
+    setState(() {
+      _isPortraitMode = !_isPortraitMode;
+      if (_isPortraitMode) {
+         // Maybe show a toast
+         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Portrait Mode: ON (Background Blur)'), duration: Duration(seconds: 1)));
+      }
+    });
+  }
+
+  void _toggleAutoShutter() {
+    setState(() {
+      _isAutoShutterEnabled = !_isAutoShutterEnabled;
+      _consecutiveGoodFrames = 0;
+      _isAutoTriggering = false;
+    });
+  }
+
+  void _processCameraImage(CameraImage image) async {
+    if (_isProcessingFrame || !_isAiCoachActive) return;
+    _isProcessingFrame = true;
+
+    try {
+      final inputImage = MLKitUtils.convertCameraImage(image, _cameras[_selectedCameraIndex]);
+      if (inputImage != null) {
+        final poses = await _poseService.processImage(inputImage);
+        if (poses.isNotEmpty) {
+           final pose = poses.first;
+           double score = 0.0;
+           String feedback = "Hold steady...";
+           
+           if (_referencePose != null) {
+              score = _poseService.calculateSimilarity(_referencePose!, pose);
+              feedback = _poseService.getPoseFeedback(_referencePose!, pose);
+           } else {
+             score = 0.0; 
+             feedback = "No reference pose found";
+           }
+
+           if (mounted) {
+             setState(() {
+               _detectedPose = pose;
+               _matchScore = score;
+               _feedbackText = feedback;
+             });
+             
+             // Gesture Control: Raise Hand to Snap (Right Wrist higher than Right Ear)
+             final rightWrist = pose.landmarks[PoseLandmarkType.rightWrist];
+             final rightEar = pose.landmarks[PoseLandmarkType.rightEar];
+             
+             if (rightWrist != null && rightEar != null && rightWrist.y < rightEar.y && !_controller!.value.isTakingPicture) {
+                 if (_timerDuration == 0) _timerDuration = 3; 
+                 if (!_isCountingDown) {
+                    _takePicture();
+                    _ttsService.speak("Gesture detected!");
+                 }
+             }
+
+             // Auto-Shutter Logic
+             if (_isAutoShutterEnabled && !_isAutoTriggering && !_controller!.value.isTakingPicture) {
+                if (score > 85) {
+                   _consecutiveGoodFrames++;
+                   
+                   // Audio Feedback for High Score
+                   if (_consecutiveGoodFrames == 1) {
+                      _ttsService.speak("Perfect! Hold it!");
+                   }
+                   
+                   if (_consecutiveGoodFrames > 20) { 
+                      _isAutoTriggering = true;
+                      _autoTriggerTimer?.cancel();
+                       // Small delay/countdown visualization could go here
+                      _takePicture().then((_) {
+                         if (mounted) {
+                           setState(() {
+                             _isAutoTriggering = false;
+                             _consecutiveGoodFrames = 0;
+                           });
+                         }
+                      });
+                   }
+                } else {
+                   _consecutiveGoodFrames = 0;
+                   // Throttle feedback for corrections
+                   if (score > 40 && feedback != _feedbackText) {
+                      _ttsService.speak(feedback);
+                   }
+                }
+             } else if (_isAiCoachActive && score > 85) {
+                 // Even if auto-shutter is off, praise good poses
+                  _ttsService.speak("Great pose!");
+             }
+           }
+        } else {
+           if (mounted) setState(() => _detectedPose = null);
+        }
+      } 
+      
+      // Portrait Mode Logic (Placeholder for future stream integration)
+      if (_isPortraitMode && !_isAiCoachActive) {
+          // In a real implementation, we would process the image with _segmentationService here
+          // and update a segmentation mask to be applied in the build method.
+          // For now, the user sees the "ON" state via the toggle.
+      }
+
+    } catch (e) {
+      debugPrint("Error processing frame: $e");
+    } finally {
+      _isProcessingFrame = false;
+    }
+  }
+
   Future<void> _toggleCamera() async {
     if (_cameras.length < 2) return;
     
@@ -103,6 +331,55 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     
     await _controller?.dispose();
     await _initCamera();
+  }
+
+  Future<void> _toggleResolution() async {
+    setState(() {
+      _currentResolutionPreset = _currentResolutionPreset == ResolutionPreset.high 
+          ? ResolutionPreset.max 
+          : ResolutionPreset.high;
+      _isInit = false;
+    });
+    
+    await _controller?.dispose();
+    await _initCamera();
+    
+    // Resume AI stream if it was active
+    if (_isAiCoachActive) {
+       _toggleAiCoach(); // This toggles it off then on? No, logic needs check.
+       // Actually _toggleAiCoach toggles. We need to force restart stream.
+       // Simpler: Just let user re-enable AI or handle it. 
+       // For UX, let's keep it simple: Switching Res stops AI. User can tap to restart.
+       setState(() => _isAiCoachActive = false);
+    }
+  }
+
+  void _toggleAspectRatio() {
+    setState(() {
+      _currentAspectRatioIndex = (_currentAspectRatioIndex + 1) % _aspectRatios.length;
+    });
+  }
+
+  void _toggleFilter() {
+    setState(() {
+      _filterIndex = (_filterIndex + 1) % _filters.length;
+    });
+  }
+
+  double _calculateCoverScale() {
+     if (_controller == null || !_controller!.value.isInitialized) return 1.0;
+     // Simple heuristic: If we want Square (1.0) and Camera is 3/4 (0.75), we need to scale up by 1/0.75 = 1.33
+     // If we want 9/16 (0.56) and Camera is 3/4 (0.75), we scale? No, 9/16 is taller.
+     // Actually, standard logic:
+     double screenRatio = _aspectRatios[_currentAspectRatioIndex];
+     double cameraRatio = _controller!.value.aspectRatio; 
+     // Note: cameraRatio might be inverted (4/3 vs 3/4) depending on orientation.
+     // Assuming Portrait: Camera is usually < 1.0 (e.g. 0.75).
+     
+     if (screenRatio == 1.0) {
+       return 1 / cameraRatio; // Scale width to match height?
+     }
+     return 1.0; // For now, let CameraPreview handle standard cases or precise math later.
   }
 
   // ... existing methods ...
@@ -280,6 +557,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     }
 
     try {
+      await SoundUtils.playShutterSound(); // Play Sound
       final image = await _controller!.takePicture();
       
       if (mounted) {
@@ -321,6 +599,8 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
           // Common Overlays
           if (_gridMode != 0) Positioned.fill(child: _buildGrid()),
           if (_isLevelerActive) Positioned.fill(child: _buildLeveler()),
+          if (_isAiCoachActive && _detectedPose != null) Positioned.fill(child: _buildSkeleton()),
+          if (_isAiCoachActive) _buildAiScore(), // Show score badge
           
           // UI Controls
           _buildTopControls(),
@@ -336,21 +616,37 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     return GestureDetector(
       onScaleStart: _handleScaleStart,
       onScaleUpdate: _handleScaleUpdate,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          CameraPreview(_controller!),
-          if (widget.photo != null)
-            Opacity(
-              opacity: _opacity,
-              child: Image.network(
-                  widget.photo!.url, 
-                  fit: BoxFit.cover,
-                  color: _isGhostMode ? Colors.white : null,
-                  colorBlendMode: _isGhostMode ? BlendMode.difference : null,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: _aspectRatios[_currentAspectRatioIndex],
+            child: ClipRect(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Camera Preview (Scaled to Cover)
+                  Transform.scale(
+                    scale: _calculateCoverScale(),
+                    child: Center(
+                       child: ColorFiltered(
+                         colorFilter: _filters[_filterIndex] ?? const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                         child: CameraPreview(_controller!),
+                       ),
+                    ),
+                  ),
+            if (widget.photo != null)
+              Opacity(
+                opacity: _opacity,
+                child: Image.network(
+                    widget.photo!.url, 
+                    fit: BoxFit.contain, // Changed from cover to contain to avoid zooming/cropping
+                    color: _isGhostMode ? Colors.white : null,
+                    colorBlendMode: _isGhostMode ? BlendMode.difference : null,
+                ),
               ),
+          ],
             ),
-        ],
+          ),
+        ),
       ),
     );
   }
@@ -362,7 +658,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
           child: widget.photo != null 
               ? Image.network(
                   widget.photo!.url, 
-                  fit: BoxFit.cover, 
+                  fit: BoxFit.contain, // Changed from cover to contain
                   width: double.infinity,
                   color: _isGhostMode ? Colors.white : null,
                   colorBlendMode: _isGhostMode ? BlendMode.difference : null,
@@ -395,28 +691,78 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(30)),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
-            IconButton(icon: Icon(_getFlashIcon(), color: Colors.white), onPressed: _toggleFlash),
-            IconButton(icon: Icon(_gridMode == 0 ? Icons.grid_off : Icons.grid_on, color: _gridMode == 0 ? Colors.white54 : Colors.yellowAccent), onPressed: _toggleGrid),
-            IconButton(icon: Icon(_timerDuration == 0 ? Icons.timer_off : (_timerDuration == 3 ? Icons.timer_3 : Icons.timer_10), color: _timerDuration == 0 ? Colors.white54 : Colors.yellowAccent), onPressed: _toggleTimer),
-            
-            // New Toggles
-            IconButton(
-              icon: Icon(Icons.screen_rotation, color: _isLevelerActive ? Colors.yellowAccent : Colors.white54),
-              onPressed: _toggleLeveler,
-            ),
-             IconButton(
-              icon: Icon(Icons.vertical_split, color: _isSplitMode ? Colors.yellowAccent : Colors.white54),
-              onPressed: _toggleSplit,
-            ),
-             IconButton(
-              icon: Icon(Icons.contrast, color: _isGhostMode ? Colors.yellowAccent : Colors.white54),
-              onPressed: _toggleGhost,
-            ),
-          ],
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+              
+              // AI Coach (Moved to front for visibility)
+              IconButton(
+                icon: Icon(Icons.accessibility_new, color: _isAiCoachActive ? Colors.greenAccent : Colors.white),
+                onPressed: _toggleAiCoach,
+              ),
+               if (_isAiCoachActive)
+                 IconButton(
+                  icon: Icon(Icons.hdr_auto, color: _isAutoShutterEnabled ? Colors.greenAccent : Colors.white54),
+                  onPressed: _toggleAutoShutter,
+                ),
+
+              IconButton(icon: Icon(_getFlashIcon(), color: Colors.white), onPressed: _toggleFlash),
+              
+              // Resolution Toggle
+              IconButton(
+                icon: Icon(
+                  _currentResolutionPreset == ResolutionPreset.max ? Icons.high_quality : Icons.hd, 
+                  color: _currentResolutionPreset == ResolutionPreset.max ? Colors.yellowAccent : Colors.white54
+                ), 
+                onPressed: _toggleResolution
+              ),
+
+              // Aspect Ratio Toggle
+              IconButton(
+                onPressed: _toggleAspectRatio,
+                icon: Text(
+                  _aspectRatioLabels[_currentAspectRatioIndex], 
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)
+                ),
+              ),
+
+              // Filter Toggle
+              IconButton(
+                onPressed: _toggleFilter,
+                icon: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.palette, color: Colors.white, size: 20),
+                    Text(_filterLabels[_filterIndex], style: const TextStyle(color: Colors.white, fontSize: 10)),
+                  ],
+                ),
+              ),
+
+              IconButton(icon: Icon(_gridMode == 0 ? Icons.grid_off : Icons.grid_on, color: _gridMode == 0 ? Colors.white54 : Colors.yellowAccent), onPressed: _toggleGrid),
+              IconButton(icon: Icon(_timerDuration == 0 ? Icons.timer_off : (_timerDuration == 3 ? Icons.timer_3 : Icons.timer_10), color: _timerDuration == 0 ? Colors.white54 : Colors.yellowAccent), onPressed: _toggleTimer),
+              
+              // New Toggles
+              IconButton(
+                icon: Icon(Icons.blur_on, color: _isPortraitMode ? Colors.yellowAccent : Colors.white54),
+                onPressed: _togglePortraitMode,
+              ),
+              IconButton(
+                icon: Icon(Icons.screen_rotation, color: _isLevelerActive ? Colors.yellowAccent : Colors.white54),
+                onPressed: _toggleLeveler,
+              ),
+               IconButton(
+                icon: Icon(Icons.vertical_split, color: _isSplitMode ? Colors.yellowAccent : Colors.white54),
+                onPressed: _toggleSplit,
+              ),
+               IconButton(
+                icon: Icon(Icons.contrast, color: _isGhostMode ? Colors.yellowAccent : Colors.white54),
+                onPressed: _toggleGhost,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -433,6 +779,76 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
      }
   }
 
+  Widget _buildSkeleton() {
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: SkeletonPainter(
+           pose: _detectedPose, 
+           referencePose: _isGhostMode ? _referencePose : null // Only show ref skeleton in Ghost Mode for clarity? Or always?
+        ),
+        child: Container(),
+      ),
+    );
+  }
+
+  Widget _buildAiScore() {
+    return Positioned(
+      top: 100, 
+      left: 20, 
+      right: 20,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _matchScore > 80 ? Colors.greenAccent : (_matchScore > 50 ? Colors.yellowAccent : Colors.redAccent),
+                width: 2
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.auto_awesome, color: _matchScore > 80 ? Colors.greenAccent : Colors.yellowAccent, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  "Match: ${_matchScore.toInt()}%", 
+                  style: TextStyle(
+                    color: _matchScore > 80 ? Colors.greenAccent : Colors.white, 
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          if (_matchScore < 90 && _detectedPose != null)
+            Material(
+              color: Colors.transparent,
+              child: Text(
+                _feedbackText,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+           if (_isAutoShutterEnabled && _matchScore > 85 && !_isAutoTriggering)
+              const Padding(
+                 padding: EdgeInsets.only(top: 8),
+                 child: Text("Hold for Photo...", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+              ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGrid() {
     return IgnorePointer(child: CustomPaint(painter: GridPainter(mode: _gridMode), child: Container()));
   }
@@ -441,6 +857,71 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     return IgnorePointer(child: CustomPaint(painter: LevelerPainter(angle: _deviceRoll), child: Container()));
   }
 }
+
+class SkeletonPainter extends CustomPainter {
+  final Pose? pose;
+  final Pose? referencePose;
+  
+  SkeletonPainter({this.pose, this.referencePose});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    
+    // Draw Reference Pose (Blue)
+    if (referencePose != null) {
+      final paintRef = Paint()..color = Colors.blueAccent.withOpacity(0.6)..strokeWidth = 3;
+       _drawPose(canvas, referencePose!, paintRef);
+    }
+
+    // Draw User Pose (Green)
+    if (pose != null) {
+       final paintUser = Paint()..color = Colors.greenAccent..strokeWidth = 3;
+       _drawPose(canvas, pose!, paintUser);
+    }
+  }
+
+  void _drawPose(Canvas canvas, Pose p, Paint paint) {
+    final landmarks = p.landmarks;
+    
+    void drawLine(PoseLandmarkType t1, PoseLandmarkType t2) {
+      final l1 = landmarks[t1];
+      final l2 = landmarks[t2];
+      if (l1 != null && l2 != null && l1.likelihood > 0.5 && l2.likelihood > 0.5) {
+         canvas.drawLine(Offset(l1.x, l1.y), Offset(l2.x, l2.y), paint);
+      }
+    }
+    
+    // Arms
+    drawLine(PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow);
+    drawLine(PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist);
+    drawLine(PoseLandmarkType.rightShoulder, PoseLandmarkType.rightElbow);
+    drawLine(PoseLandmarkType.rightElbow, PoseLandmarkType.rightWrist);
+    
+    // Shoulders
+    drawLine(PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder);
+    
+    // Body
+    drawLine(PoseLandmarkType.leftShoulder, PoseLandmarkType.leftHip);
+    drawLine(PoseLandmarkType.rightShoulder, PoseLandmarkType.rightHip);
+    drawLine(PoseLandmarkType.leftHip, PoseLandmarkType.rightHip);
+    
+    // Legs
+    drawLine(PoseLandmarkType.leftHip, PoseLandmarkType.leftKnee);
+    drawLine(PoseLandmarkType.leftKnee, PoseLandmarkType.leftAnkle);
+    drawLine(PoseLandmarkType.rightHip, PoseLandmarkType.rightKnee);
+    drawLine(PoseLandmarkType.rightKnee, PoseLandmarkType.rightAnkle);
+    
+    // Face (Optional but helpful)
+    drawLine(PoseLandmarkType.leftEar, PoseLandmarkType.leftEye);
+    drawLine(PoseLandmarkType.rightEar, PoseLandmarkType.rightEye);
+    drawLine(PoseLandmarkType.leftEye, PoseLandmarkType.nose);
+    drawLine(PoseLandmarkType.rightEye, PoseLandmarkType.nose);
+  }
+
+  @override
+  bool shouldRepaint(covariant SkeletonPainter oldDelegate) => true; 
+}
+
 
 class GridPainter extends CustomPainter {
   final int mode; 

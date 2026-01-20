@@ -4,15 +4,28 @@ import 'package:flutter/foundation.dart';
 import 'dart:io';
 
 class ImageDownloader {
-  static Future<bool> downloadImage(String url) async {
+  static Future<File?> downloadToTemp(String url) async {
     try {
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        // Create a temporary file
         final tempDir = Directory.systemTemp;
-        final tempFile = File('${tempDir.path}/temp_image.jpg');
+        // Unique filename
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final tempFile = File('${tempDir.path}/temp_ref_$timestamp.jpg');
         await tempFile.writeAsBytes(response.bodyBytes);
+        return tempFile;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Error downloading to temp: $e');
+      return null;
+    }
+  }
 
+  static Future<bool> downloadImage(String url) async {
+    try {
+      final File? tempFile = await downloadToTemp(url);
+      if (tempFile != null) {
         // Save using Gal
         await Gal.putImage(tempFile.path);
         
@@ -20,7 +33,6 @@ class ImageDownloader {
         if (await tempFile.exists()) {
           await tempFile.delete();
         }
-        
         return true;
       }
       return false;

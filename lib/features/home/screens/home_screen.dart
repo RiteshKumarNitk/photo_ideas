@@ -117,33 +117,33 @@ class _HomeScreenState extends State<HomeScreen> {
                 onDestinationSelected: _onItemTapped,
                 backgroundColor: Colors.transparent, // Transparent to show container decoration
                 indicatorColor: Colors.white,
-                labelBehavior: NavigationDestinationLabelBehavior.onlyShowSelected,
-                height: 70,
+                labelBehavior: NavigationDestinationLabelBehavior.alwaysHide, // Hiding labels
+                height: 80, // Taller bar
                 elevation: 0,
                 destinations: const [
                   NavigationDestination(
-                    icon: Icon(Icons.home_outlined, color: Colors.white70),
-                    selectedIcon: Icon(Icons.home, color: Colors.black),
+                    icon: Icon(Icons.home_outlined, color: Colors.white70, size: 32),
+                    selectedIcon: Icon(Icons.home, color: Colors.black, size: 32),
                     label: 'Home',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.search_outlined, color: Colors.white70),
-                    selectedIcon: Icon(Icons.search, color: Colors.black),
+                    icon: Icon(Icons.search_outlined, color: Colors.white70, size: 32),
+                    selectedIcon: Icon(Icons.search, color: Colors.black, size: 32),
                     label: 'Search',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.camera_alt_outlined, color: Colors.white70),
-                    selectedIcon: Icon(Icons.camera_alt, color: Colors.black),
+                    icon: Icon(Icons.camera_alt_outlined, color: Colors.white70, size: 32),
+                    selectedIcon: Icon(Icons.camera_alt, color: Colors.black, size: 32),
                     label: 'Magic',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.style_outlined, color: Colors.white70),
-                    selectedIcon: Icon(Icons.style, color: Colors.black),
+                    icon: Icon(Icons.style_outlined, color: Colors.white70, size: 32),
+                    selectedIcon: Icon(Icons.style, color: Colors.black, size: 32),
                     label: 'Swipe',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.person_outline, color: Colors.white70),
-                    selectedIcon: Icon(Icons.person, color: Colors.black),
+                    icon: Icon(Icons.person_outline, color: Colors.white70, size: 32),
+                    selectedIcon: Icon(Icons.person, color: Colors.black, size: 32),
                     label: 'Profile',
                   ),
                 ],
