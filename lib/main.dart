@@ -16,20 +16,20 @@ void main() async {
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),
-      child: const PhotoIdeasApp(),
+      child: const SnapIdeasApp(),
     ),
   );
 }
 
-class PhotoIdeasApp extends StatelessWidget {
-  const PhotoIdeasApp({super.key});
+class SnapIdeasApp extends StatelessWidget {
+  const SnapIdeasApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
     return MaterialApp(
-      title: 'Photos For',
+      title: 'SnapIdeas',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

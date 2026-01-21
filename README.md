@@ -1,16 +1,17 @@
-# photo_ideas_app
+# SnapIdeas
 
-A new Flutter project.
+**SnapIdeas** is your ultimate guide to perfect poses. Whether you're a professional photographer or just want to level up your social media game, SnapIdeas uses AI to help you capture the best version of yourself.
+
+## Quick Links
+- [Detailed Documentation](DOCUMENTATION.md)
+- [Feature Overview](DOCUMENTATION.md#key-features)
+- [Tech Stack](DOCUMENTATION.md#tech-stack)
 
 ## Getting Started
+To get a local copy up and running, follow these simple steps:
+1. Ensure you have the [Flutter SDK](https://docs.flutter.dev/get-started/install) installed.
+2. Run `flutter pub get` to fetch dependencies.
+3. Use `flutter run` to launch the app on your preferred device.
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+---
+*For more technical details, please refer to the [Full Documentation](DOCUMENTATION.md).*
