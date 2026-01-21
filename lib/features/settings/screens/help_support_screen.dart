@@ -47,7 +47,7 @@ class HelpSupportScreen extends StatelessWidget {
                       Icon(Icons.email, size: 20, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(width: 8),
                       Text(
-                        "support@photoideas.app",
+                        "riteshkumar.nitk21@gmail.com",
                         style: Theme.of(context).textTheme.bodyLarge,
                       ),
                     ],

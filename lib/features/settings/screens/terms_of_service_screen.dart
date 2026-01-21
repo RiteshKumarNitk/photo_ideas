@@ -24,15 +24,21 @@ class TermsOfServiceScreen extends StatelessWidget {
             const SizedBox(height: 16),
             const Text(
               "1. Acceptance of Terms\n"
-              "By accessing and using this application, you accept and agree to be bound by the terms and provision of this agreement.\n\n"
-              "2. Use License\n"
-              "Permission is granted to temporarily download one copy of the materials (information or software) on Photo Ideas App for personal, non-commercial transitory viewing only.\n\n"
-              "3. Disclaimer\n"
-              "The materials on Photo Ideas App are provided 'as is'. We make no warranties, expressed or implied, and hereby disclaim and negate all other warranties.\n\n"
-              "4. Limitations\n"
-              "In no event shall Photo Ideas App or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the materials on Photo Ideas App.\n\n"
-              "5. Governing Law\n"
-              "Any claim relating to Photo Ideas App shall be governed by the laws of the local jurisdiction without regard to its conflict of law provisions.",
+              "By accessing and using SnapIdeas, you accept and agree to be bound by the terms and provisions of this agreement.\n\n"
+              "2. User Conduct\n"
+              "You agree to use the app only for lawful purposes. You must not use the app to harass, abuse, or harm others, or to upload offensive or illegal content.\n\n"
+              "3. User-Generated Content\n"
+              "You retain ownership of the content you upload. However, by uploading content, you grant SnapIdeas a non-exclusive, royalty-free license to display and process that content within the application.\n\n"
+              "4. Intellectual Property\n"
+              "The app's design, features, and curated content are protected by copyright and other intellectual property laws. You may not reproduce or distribute any part of the app without permission.\n\n"
+              "5. Disclaimer of Warranties\n"
+              "SnapIdeas is provided 'as is' without any warranties, express or implied. We do not guarantee that the app will be error-free or uninterrupted.\n\n"
+              "6. Limitation of Liability\n"
+              "In no event shall SnapIdeas be liable for any damages arising out of the use or inability to use the application.\n\n"
+              "7. Changes to Terms\n"
+              "We reserve the right to modify these terms at any time. Your continued use of the app signifies your acceptance of any changes.\n\n"
+              "8. Contact\n"
+              "For any queries regarding these terms, contact us at riteshkumar.nitk21@gmail.com",
             ),
           ],
         ),

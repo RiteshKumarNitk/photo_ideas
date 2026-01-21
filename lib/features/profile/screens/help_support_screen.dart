@@ -59,17 +59,17 @@ class HelpSupportScreen extends StatelessWidget {
                     **Privacy Policy**
 
                     1. **Data Collection**
-                    We collect basic user information such as your name, email address, and profile picture to provide a personalized experience.
+                    We collect basic user information such as your name, email address, and profile picture to provide a personalized experience in SnapIdeas.
 
                     2. **Image Sources & Copyright**
-                    - **App Content:** The default images provided within this application are sourced from **Unsplash** and are used in accordance with the Unsplash License, which allows for free commercial and non-commercial use.
-                    - **User Uploads:** Any images uploaded by you (the user) are stored securely. You retain the rights to your uploaded content. However, by uploading, you grant us a license to display these images within the app.
+                    - **App Content:** Curated images are sourced from Unsplash and used in accordance with the Unsplash License.
+                    - **User Uploads:** You retain rights to your uploaded content. You grant us a license to display them within SnapIdeas.
 
                     3. **Data Usage**
-                    We use your data to improve app functionality, manage your account, and provide customer support. We do not sell your personal data to third parties.
+                    We use your data to improve app functionality and provide support. We do not sell your personal data.
 
                     4. **Security**
-                    We implement appropriate security measures to protect your personal information and uploaded content.
+                    We implement appropriate security measures to protect your information.
                     """,
                 ),
               ),
@@ -85,7 +85,7 @@ class HelpSupportScreen extends StatelessWidget {
 **Terms of Service**
 
 1. **Acceptance of Terms**
-By using the Photo Ideas app, you agree to these Terms of Service. If you do not agree, please do not use the app.
+By using the SnapIdeas app, you agree to these Terms of Service. If you do not agree, please do not use the app.
 
 2. **User Conduct**
 You agree to use the app only for lawful purposes. You must not use the app to harass, abuse, or harm others.
@@ -96,7 +96,7 @@ You agree to use the app only for lawful purposes. You must not use the app to h
 - **Prohibited Content:** You may not upload content that is illegal, offensive, or violates the rights of others. We reserve the right to remove any content that violates these terms.
 
 4. **App Content**
-The curated images provided by the app are sourced from Unsplash and are subject to the Unsplash License. You may use them for personal inspiration.
+The curated images provided by the app are subject to the Unsplash License (for default content). You may use them for personal inspiration.
 
 5. **Termination**
 We reserve the right to terminate or suspend your account if you violate these terms.
