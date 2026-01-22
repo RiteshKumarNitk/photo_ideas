@@ -1,4 +1,4 @@
-package com.riteshkumar.snap_ideas
+package com.riteshkumar.photo_ideas_app
 
 import io.flutter.embedding.android.FlutterActivity
 
