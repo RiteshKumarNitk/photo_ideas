@@ -84,6 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final user = Supabase.instance.client.auth.currentUser;
+    final isGuest = user == null;
     final isAdmin = user?.email == 'riteshkumar.nitk21@gmail.com';
 
     return Scaffold(
@@ -118,19 +119,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
             children: [
-              _buildSectionHeader(context, "Account"),
-              _buildGlassSettingsTile(
-                context,
-                icon: Icons.person_outline,
-                title: "Edit Profile",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const EditProfileScreen()),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
+              if (!isGuest) ...[
+                _buildSectionHeader(context, "Account"),
+                _buildGlassSettingsTile(
+                  context,
+                  icon: Icons.person_outline,
+                  title: "Edit Profile",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+              ],
               _buildSectionHeader(context, "Appearance"),
               _buildGlassSwitchTile(
                 context,
@@ -204,21 +207,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: "1.0.0",
               ),
               const SizedBox(height: 24),
-              _buildGlassSettingsTile(
-                context,
-                icon: Icons.logout,
-                title: "Logout",
-                isDestructive: true,
-                onTap: () => _logout(context),
-              ),
-              if (!isAdmin)
+              if (isGuest)
                 _buildGlassSettingsTile(
                   context,
-                  icon: Icons.delete_forever,
-                  title: "Delete Account",
+                  icon: Icons.login,
+                  title: "Sign In",
+                  onTap: () {
+                     Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  },
+                )
+              else ...[
+                _buildGlassSettingsTile(
+                  context,
+                  icon: Icons.logout,
+                  title: "Logout",
                   isDestructive: true,
-                  onTap: () => _deleteAccount(context),
+                  onTap: () => _logout(context),
                 ),
+                if (!isAdmin)
+                  _buildGlassSettingsTile(
+                    context,
+                    icon: Icons.delete_forever,
+                    title: "Delete Account",
+                    isDestructive: true,
+                    onTap: () => _deleteAccount(context),
+                  ),
+              ],
             ],
           ),
         ],

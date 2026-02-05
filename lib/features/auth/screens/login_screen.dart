@@ -175,6 +175,23 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
+          
+          // Back Button
+          Positioned(
+            top: 40,
+            left: 20,
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).maybePop(),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.arrow_back, color: Colors.white),
+              ),
+            ),
+          ),
         ],
       ),
     );

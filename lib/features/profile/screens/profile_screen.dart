@@ -98,12 +98,110 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final User? user = Supabase.instance.client.auth.currentUser;
-    final String name = user?.userMetadata?['full_name'] ?? 'User';
-    final String email = user?.email ?? 'No Email';
 
-    final String? avatarUrl = user?.userMetadata?['avatar_url'];
-    final String? phone = user?.userMetadata?['phone_number'];
-    final String? gender = user?.userMetadata?['gender'];
+    if (user == null) {
+      return SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.person_outline, size: 60, color: Colors.white),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                "Welcome Guest",
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Sign in to access your profile and save ideas",
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white70),
+              ),
+              const SizedBox(height: 32),
+              ScaleButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Colors.purple, Colors.deepPurple],
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.purple.withOpacity(0.4),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    "Sign In / Sign Up",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 40),
+               // Still show Help & Support for guests
+               Padding(
+                 padding: const EdgeInsets.symmetric(horizontal: 30),
+                 child: _buildGlassProfileOption(
+                  context, 
+                  Icons.help, 
+                  "Help & Support",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
+                    );
+                  },
+              ),
+               ),
+               Padding(
+                 padding: const EdgeInsets.symmetric(horizontal: 30),
+                 child: _buildGlassProfileOption(
+                  context, 
+                  Icons.settings, 
+                  "Settings",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                    );
+                  },
+              ),
+               ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final String name = user.userMetadata?['full_name'] ?? 'User';
+    final String email = user.email ?? 'No Email';
+
+    final String? avatarUrl = user.userMetadata?['avatar_url'];
+    final String? phone = user.userMetadata?['phone_number'];
+    final String? gender = user.userMetadata?['gender'];
 
     // Note: No Scaffold here because it's used inside HomeScreen's body Stack
     return SafeArea(

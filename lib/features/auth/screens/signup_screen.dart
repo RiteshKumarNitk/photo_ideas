@@ -253,7 +253,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               TextButton(
                                 onPressed: () => Navigator.pushReplacement(
                                   context,
-                                  MaterialPageRoute(builder: (context) => LoginScreen()),
+                                  MaterialPageRoute(builder: (context) => const LoginScreen()),
                                 ),
                                 child: Text(
                                   "Already have an account? Login",
@@ -278,6 +278,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       ),
                     ),
                   ),
+                ),
+              ),
+            ),
+            
+            // Back/Exit Button
+            Positioned(
+              top: 40,
+              left: 20,
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).maybePop(),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white),
                 ),
               ),
             ),

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../utils/image_downloader.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../auth/screens/login_screen.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/models/photo_model.dart';
 import 'magic_camera_screen.dart';
@@ -39,6 +41,12 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
   }
 
   Future<void> _toggleLike() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      _showLoginPrompt();
+      return;
+    }
+
     try {
       final newStatus = await SupabaseService.toggleLike(widget.photo.url);
       final newCount = await SupabaseService.getLikeCount(widget.photo.url);
@@ -55,6 +63,37 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
         );
       }
     }
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Sign In Required', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'You need to sign in to like photos and save them to your favorites.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
+            child: const Text('Sign In', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

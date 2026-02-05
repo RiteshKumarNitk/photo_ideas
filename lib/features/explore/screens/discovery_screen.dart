@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/models/photo_model.dart';
 import '../../../core/services/supabase_service.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../auth/screens/login_screen.dart';
 import 'dart:ui';
 
 class DiscoveryScreen extends StatefulWidget {
@@ -50,19 +52,18 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     }
   }
 
-  void _onSwipe(int index, dynamic direction) {
-    // Check direction by string if type is not available, or just check 'right' logic if mostly right-swipe?
-    // Direction usually has toString() like 'AppinioSwiperDirection.right'
-    if (direction.toString().contains('right')) {
-      _saveToFavorites(_photos[index - 1]); // Index given is often the *next* index or the swiped index. In 2.x, index is the index of the card that was swiped away (0-based?). 
-      // Actually usually 'new index'. But if we map mapped 1:1.
-      // Let's assume index is reliable enough to pick *something* or just use last if stack.
-      // In 2.1.1 onSwipe(int previousIndex, AppinioSwiperDirection direction).
-      // If previousIndex is the one swiped.
+  void _onSwipe(int previousIndex, int targetIndex, SwiperActivity activity) {
+    if (activity is Swipe && activity.direction == AxisDirection.right) {
+      if (previousIndex >= 0 && previousIndex < _photos.length) {
+        _saveToFavorites(_photos[previousIndex]);
+      }
     }
   }
 
   Future<void> _saveToFavorites(PhotoModel photo) async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return; // Don't save for guests on swipe
+
     await SupabaseService.toggleLike(photo.url);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -73,6 +74,46 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         ),
       );
     }
+  }
+
+  void _handleLikeAction() {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      _showLoginPrompt();
+    } else {
+      _swiperController.swipeRight();
+    }
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Sign In Required', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'You need to sign in to save your likes.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
+            child: const Text('Sign In', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -99,9 +140,11 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             child: AppinioSwiper(
               controller: _swiperController,
               cardCount: _photos.length,
-              cardBuilder: (context, index) {
-                final photo = _photos[index];
-                return ClipRRect(
+              onSwipeEnd: _onSwipe,
+              cardBuilder: (context, index) { 
+                 // ... existing cardBuilder code
+                 final photo = _photos[index];
+                 return ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: Stack(
                     fit: StackFit.expand,
@@ -151,13 +194,11 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               children: [
                 _buildActionButton(Icons.close, Colors.red, () => _swiperController.swipeLeft()),
                 _buildActionButton(Icons.info_outline, Colors.blue, () {
-                  // Show details
-                   // Info button logic temporarily disabled or just show current card hint
                    ScaffoldMessenger.of(context).showSnackBar(
                      const SnackBar(content: Text("Swipe right to save!")),
                    );
                 }),
-                _buildActionButton(Icons.favorite, Colors.green, () => _swiperController.swipeRight()),
+                _buildActionButton(Icons.favorite, Colors.green, _handleLikeAction),
               ],
             ),
           ),

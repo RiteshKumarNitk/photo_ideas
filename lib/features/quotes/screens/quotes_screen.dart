@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../auth/screens/login_screen.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../utils/data_source.dart';
 
@@ -291,6 +293,12 @@ class _QuoteCardState extends State<QuoteCard> {
     if (widget.quote['id'] == -1) return; // Can't like fallback quotes
     if (_isLikeLoading) return;
 
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      _showLoginPrompt();
+      return;
+    }
+
     setState(() => _isLikeLoading = true);
     try {
       final id = widget.quote['id'] as int;
@@ -307,6 +315,37 @@ class _QuoteCardState extends State<QuoteCard> {
     } finally {
       if (mounted) setState(() => _isLikeLoading = false);
     }
+  }
+
+  void _showLoginPrompt() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Sign In Required', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'You need to sign in to like quotes and save them to your favorites.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
+            child: const Text('Sign In', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
