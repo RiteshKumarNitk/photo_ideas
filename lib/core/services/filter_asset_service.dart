@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart' show rootBundle;
 
 class FilterAssetService {
   static final Map<String, ui.Image> _imageCache = {};
@@ -14,12 +15,18 @@ class FilterAssetService {
 
     try {
       final Completer<ui.Image> completer = Completer();
-      
-      // Fetch the image
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) throw Exception('Failed to load asset');
-      
-      final Uint8List bytes = response.bodyBytes;
+      Uint8List bytes;
+
+      if (url.startsWith('assets/')) {
+        // Load from local assets
+        final ByteData data = await rootBundle.load(url);
+        bytes = data.buffer.asUint8List();
+      } else {
+        // Fetch from network
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode != 200) throw Exception('Failed to load asset');
+        bytes = response.bodyBytes;
+      }
       
       // Decode
       ui.decodeImageFromList(bytes, (ui.Image img) {

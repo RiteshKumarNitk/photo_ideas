@@ -42,6 +42,36 @@ class FaceFilter {
     this.scale = 1.0,
     this.offset = Offset.zero,
   });
+
+  factory FaceFilter.fromJson(Map<String, dynamic> json) {
+    FaceFilterCapability typeEnum = FaceFilterCapability.values.firstWhere(
+      (e) => e.toString().split('.').last == (json['type'] ?? 'asset'),
+      orElse: () => FaceFilterCapability.asset, // Default to asset
+    );
+    
+    FaceLandmarkAnchor? anchorEnum;
+    if (json['anchor'] != null) {
+       anchorEnum = FaceLandmarkAnchor.values.firstWhere(
+         (e) => e.toString().split('.').last == json['anchor'],
+         orElse: () => FaceLandmarkAnchor.forehead,
+       );
+    }
+
+    double offsetX = (json['offset_x'] ?? 0).toDouble();
+    double offsetY = (json['offset_y'] ?? 0).toDouble();
+
+    return FaceFilter(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] ?? 'Unknown',
+      iconUrl: json['icon_url'] ?? '',
+      type: typeEnum,
+      assetUrl: json['asset_url'],
+      anchor: anchorEnum,
+      scale: (json['scale'] ?? 1.0).toDouble(),
+      offset: Offset(offsetX, offsetY),
+      params: json['params'] ?? {},
+    );
+  }
 }
 
 class FilterRepository {

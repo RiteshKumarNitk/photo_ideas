@@ -21,6 +21,7 @@ import '../../../core/utils/mlkit_utils.dart';
 import '../../../core/utils/sound_utils.dart'; // Import SoundUtils
 import '../../../core/services/selfie_segmentation_service.dart'; // Import Segmentation
 import '../../../utils/image_downloader.dart'; // Reusing your existing downloader if available or using File
+import '../../../core/services/face_filter_service.dart';
 
 class MagicCameraScreen extends StatefulWidget {
   final PhotoModel? photo;
@@ -88,6 +89,16 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     WidgetsBinding.instance.addObserver(this);
     _initCamera();
     _loadReferencePose();
+    _loadFaceFilters();
+  }
+
+  Future<void> _loadFaceFilters() async {
+    final filters = await FaceFilterService.getFilters();
+    if (mounted) {
+       setState(() {
+         _availableFilters = filters;
+       });
+    }
   }
 
   Future<void> _loadReferencePose() async {

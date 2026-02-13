@@ -284,4 +284,18 @@ class SupabaseService {
       return 0;
     }
   }
+
+  // --- Face Filters ---
+  static Future<List<Map<String, dynamic>>> getFaceFilters() async {
+    try {
+      final response = await client
+          .from('face_filters')
+          .select();
+      
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching face filters: $e');
+      return [];
+    }
+  }
 }
