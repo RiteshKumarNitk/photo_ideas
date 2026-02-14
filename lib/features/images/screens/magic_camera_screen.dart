@@ -22,6 +22,7 @@ import '../../../core/utils/sound_utils.dart'; // Import SoundUtils
 import '../../../core/services/selfie_segmentation_service.dart'; // Import Segmentation
 import '../../../utils/image_downloader.dart'; // Reusing your existing downloader if available or using File
 import '../../../core/services/face_filter_service.dart';
+import '../../../core/utils/face_filter_processor.dart';
 
 class MagicCameraScreen extends StatefulWidget {
   final PhotoModel? photo;
@@ -672,8 +673,24 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
 
     try {
       await SoundUtils.playShutterSound(); // Play Sound
-      final image = await _controller!.takePicture();
+      var image = await _controller!.takePicture();
       
+      // Apply Face Filter if active
+      if (_isFaceFilterActive && _selectedFilterIndex > 0) {
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Applying magic filter... ✨')));
+        }
+        
+        final filteredPath = await FaceFilterProcessor.applyFilterToImage(
+          image.path, 
+          _availableFilters[_selectedFilterIndex]
+        );
+
+        if (filteredPath != null) {
+          image = XFile(filteredPath);
+        }
+      }
+
       if (mounted) {
         setState(() {
           _lastCapturedPhoto = image;

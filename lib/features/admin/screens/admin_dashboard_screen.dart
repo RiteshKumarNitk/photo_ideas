@@ -7,6 +7,7 @@ import 'admin_assets_screen.dart';
 import 'admin_data_sync_screen.dart';
 import 'admin_data_clear_screen.dart';
 import 'admin_category_screen.dart';
+import 'admin_filters_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -67,6 +68,17 @@ class AdminDashboardScreen extends StatelessWidget {
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const AdminImagesScreen()),
+                  ),
+                ),
+                _buildMenuCard(
+                  context,
+                  title: 'Manage Filters',
+                  icon: Icons.face_retouching_natural,
+                  // Using a different color
+                  color: Colors.pinkAccent,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminFiltersScreen()),
                   ),
                 ),
                 _buildMenuCard(

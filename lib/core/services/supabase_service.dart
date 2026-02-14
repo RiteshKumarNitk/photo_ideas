@@ -298,4 +298,14 @@ class SupabaseService {
       return [];
     }
   }
+
+  // Add a new face filter
+  static Future<void> addFaceFilter(Map<String, dynamic> filterData) async {
+    await client.from('face_filters').insert(filterData);
+  }
+
+  // Delete a face filter
+  static Future<void> deleteFaceFilter(String id) async {
+    await client.from('face_filters').delete().eq('id', id);
+  }
 }

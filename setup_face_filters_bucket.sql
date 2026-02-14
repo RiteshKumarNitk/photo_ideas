@@ -1,23 +1,33 @@
--- Create a new public bucket for face filter assets
-insert into storage.buckets (id, name, public)
-values ('face-filters', 'face-filters', true);
+
+-- 1. Create 'face-filters' bucket (safe insert)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('face-filters', 'face-filters', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- 2. Drop existing policies to avoid "policy already exists" errors
+DROP POLICY IF EXISTS "Public Access to Face Filters" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Export of Face Filters" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Update of Face Filters" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated Delete of Face Filters" ON storage.objects;
+
+-- 3. Re-create Policies
 
 -- Policy: Everyone can view/download filter assets
-create policy "Public Access to Face Filters"
-  on storage.objects for select
-  using ( bucket_id = 'face-filters' );
+CREATE POLICY "Public Access to Face Filters"
+  ON storage.objects FOR SELECT
+  USING ( bucket_id = 'face-filters' );
 
--- Policy: Only authenticated users can upload assets (e.g. admin)
-create policy "Authenticated Export of Face Filters"
-  on storage.objects for insert
-  with check ( bucket_id = 'face-filters' and auth.role() = 'authenticated' );
+-- Policy: Only authenticated users can upload assets
+CREATE POLICY "Authenticated Export of Face Filters"
+  ON storage.objects FOR INSERT
+  WITH CHECK ( bucket_id = 'face-filters' AND auth.role() = 'authenticated' );
 
 -- Policy: Only authenticated users can update assets
-create policy "Authenticated Update of Face Filters"
-  on storage.objects for update
-  using ( bucket_id = 'face-filters' and auth.role() = 'authenticated' );
+CREATE POLICY "Authenticated Update of Face Filters"
+  ON storage.objects FOR UPDATE
+  USING ( bucket_id = 'face-filters' AND auth.role() = 'authenticated' );
 
 -- Policy: Only authenticated users can delete assets
-create policy "Authenticated Delete of Face Filters"
-  on storage.objects for delete
-  using ( bucket_id = 'face-filters' and auth.role() = 'authenticated' );
+CREATE POLICY "Authenticated Delete of Face Filters"
+  ON storage.objects FOR DELETE
+  USING ( bucket_id = 'face-filters' AND auth.role() = 'authenticated' );
