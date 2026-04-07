@@ -131,22 +131,31 @@ class _AdminUploadScreenState extends State<AdminUploadScreen> {
     setState(() => _isLoading = true);
 
     try {
-      String? imageUrl;
+      final uploadResult = await ApiService.uploadFile(
+        _compressedImageBytes!,
+        '${DateTime.now().millisecondsSinceEpoch}.jpg',
+        'photos',
+      );
 
-      try {
-        final uploadResult = await ApiService.uploadFile(
-          _compressedImageBytes!,
-          '${DateTime.now().millisecondsSinceEpoch}.jpg',
-          'photos',
-        );
-        imageUrl = uploadResult?['url'] as String?;
-      } catch (e) {
-        debugPrint('Upload error: $e');
-        imageUrl = 'https://via.placeholder.com/800x600?text=Uploaded+Image';
+      if (uploadResult == null || uploadResult['url'] == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Upload failed: ${uploadResult?['error'] ?? 'Unknown error'}',
+              ),
+            ),
+          );
+        }
+        setState(() => _isLoading = false);
+        return;
       }
 
+      final imageUrl = uploadResult['url'] as String;
+      debugPrint('Image uploaded: $imageUrl');
+
       final success = await ApiService.uploadPhoto(
-        imageUrl: imageUrl ?? 'https://via.placeholder.com/800x600',
+        imageUrl: imageUrl,
         categoryId: _selectedCategoryId,
         title: _titleController.text.trim(),
         description: _subtitleController.text.trim(),

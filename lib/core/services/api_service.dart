@@ -7,8 +7,12 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:3000/api',
+    defaultValue: 'https://photo-ideas-api.vercel.app/api',
   );
+
+  // For local testing only - use: flutter run --dart-define=API_BASE_URL=http://localhost:3000/api
+  // static const String baseUrl = 'http://localhost:3000/api';
+
   static String? _token;
   static Map<String, dynamic>? _currentUser;
 
@@ -243,9 +247,22 @@ class ApiService {
   }
 
   static Future<List<Map<String, dynamic>>> getImagesByCategory(
-    String categoryId,
+    String categoryName,
   ) async {
-    return getPhotos(categoryId: categoryId);
+    try {
+      final uri = Uri.parse(
+        '$baseUrl/photos',
+      ).replace(queryParameters: {'categoryName': categoryName});
+      final response = await http.get(uri);
+
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error fetching images by category: $e');
+      return [];
+    }
   }
 
   static Future<Map<String, dynamic>?> getPhotoById(String id) async {
