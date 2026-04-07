@@ -80,11 +80,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
 
     try {
+      String? avatarUrl = _currentAvatarUrl;
+
+      // Upload new avatar if selected
+      if (_imageFile != null || _webImage != null) {
+        final bytes = _webImage ?? await _imageFile!.readAsBytes();
+        final fileName = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        final uploadResult = await ApiService.uploadFile(
+          bytes,
+          fileName,
+          'avatars',
+        );
+        if (uploadResult != null && uploadResult['url'] != null) {
+          avatarUrl = uploadResult['url'] as String;
+        }
+      }
+
       final success = await ApiService.updateProfile(
         fullName: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         gender: _selectedGender,
-        avatarUrl: _currentAvatarUrl,
+        avatar: avatarUrl,
       );
 
       if (success && mounted) {

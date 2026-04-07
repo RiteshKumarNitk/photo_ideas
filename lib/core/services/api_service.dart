@@ -627,7 +627,8 @@ class ApiService {
     String? bio,
     String? phoneNumber,
     String? gender,
-    String? avatarUrl,
+    String? currentPassword,
+    String? newPassword,
   }) async {
     try {
       final response = await http.put(
@@ -637,15 +638,36 @@ class ApiService {
           if (username != null) 'username': username,
           if (fullName != null) 'fullName': fullName,
           if (avatar != null) 'avatar': avatar,
-          if (avatarUrl != null) 'avatar': avatarUrl,
           if (bio != null) 'bio': bio,
           if (phoneNumber != null) 'phoneNumber': phoneNumber,
           if (gender != null) 'gender': gender,
+          if (currentPassword != null) 'currentPassword': currentPassword,
+          if (newPassword != null) 'newPassword': newPassword,
         }),
       );
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('Error updating profile: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/auth/profile'),
+        headers: await _getHeaders(),
+        body: jsonEncode({
+          'currentPassword': currentPassword,
+          'newPassword': newPassword,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Error changing password: $e');
       return false;
     }
   }

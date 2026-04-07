@@ -7,14 +7,73 @@ import '../../../core/services/api_service.dart';
 import '../../../utils/data_source.dart';
 import '../../auth/screens/login_screen.dart';
 
-class QuotesScreen extends StatelessWidget {
+class QuotesScreen extends StatefulWidget {
   final List<String> fallbackQuotes;
 
   const QuotesScreen({super.key, required this.fallbackQuotes});
 
   @override
+  State<QuotesScreen> createState() => _QuotesScreenState();
+}
+
+class _QuotesScreenState extends State<QuotesScreen> {
+  List<Map<String, dynamic>> _categories = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final quotes = await ApiService.getQuotes();
+
+      // Group quotes by category
+      final Map<String, int> categoryCounts = {};
+      for (var quote in quotes) {
+        final cat = quote['category'] as String? ?? 'General';
+        categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1;
+      }
+
+      // If no categories from API, use fallback categories
+      if (categoryCounts.isEmpty) {
+        categoryCounts.addAll({
+          'Love': 10,
+          'Wedding': 8,
+          'Sad': 6,
+          'Motivational': 12,
+          'Funny': 8,
+        });
+      }
+
+      final cats = categoryCounts.entries
+          .map((e) => {'name': e.key, 'count': e.value})
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _categories = cats;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading quote categories: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final categories = DataSource.quoteCategories.keys.toList();
+    final staticCategories = DataSource.quoteCategories.keys.toList();
+    final displayCategories = _isLoading
+        ? staticCategories
+        : _categories.map((c) => c['name'] as String).toList();
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -43,37 +102,52 @@ class QuotesScreen extends StatelessWidget {
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
             child: Container(color: Colors.black.withOpacity(0.4)),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
-            child: MasonryGridView.count(
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              itemCount: categories.length,
-              itemBuilder: (context, index) {
-                final category = categories[index];
-                final count = DataSource.quoteCategories[category]?.length ?? 0;
+          _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
+                  child: MasonryGridView.count(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    itemCount: displayCategories.length,
+                    itemBuilder: (context, index) {
+                      final category = displayCategories[index];
+                      int count = 0;
+                      if (!_isLoading && _categories.isNotEmpty) {
+                        final catData = _categories.firstWhere(
+                          (c) => c['name'] == category,
+                          orElse: () => {'count': 0},
+                        );
+                        count = catData['count'] as int? ?? 0;
+                      }
+                      if (count == 0) {
+                        count =
+                            DataSource.quoteCategories[category]?.length ?? 0;
+                      }
 
-                return _buildGlassCategoryGridItem(
-                  context,
-                  title: category,
-                  count: count,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => QuoteListScreen(
-                          category: category,
-                          fallbackQuotes:
-                              DataSource.quoteCategories[category] ?? [],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
+                      return _buildGlassCategoryGridItem(
+                        context,
+                        title: category,
+                        count: count,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => QuoteListScreen(
+                                category: category,
+                                fallbackQuotes:
+                                    DataSource.quoteCategories[category] ?? [],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
         ],
       ),
     );
@@ -99,23 +173,21 @@ class QuotesScreen extends StatelessWidget {
               border: Border.all(color: Colors.white.withOpacity(0.2)),
             ),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(_getCategoryIcon(title), color: Colors.white, size: 32),
-                const SizedBox(height: 12),
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
                   ),
-                  textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
                 Text(
-                  "Explore",
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  '$count quotes',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.white70),
                 ),
               ],
             ),
@@ -179,7 +251,7 @@ class _QuoteListScreenState extends State<QuoteListScreen> {
             _quotes = quotes;
           } else {
             _quotes = widget.fallbackQuotes
-                .map((q) => {'text': q, 'author': 'Unknown', 'id': -1})
+                .map((q) => {'content': q, 'author': 'Unknown', 'id': '-1'})
                 .toList();
           }
           _isLoading = false;
@@ -190,7 +262,7 @@ class _QuoteListScreenState extends State<QuoteListScreen> {
       if (mounted) {
         setState(() {
           _quotes = widget.fallbackQuotes
-              .map((q) => {'text': q, 'author': 'Unknown', 'id': -1})
+              .map((q) => {'content': q, 'author': 'Unknown', 'id': '-1'})
               .toList();
           _isLoading = false;
         });
@@ -366,7 +438,7 @@ class _QuoteCardState extends State<QuoteCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.quote['text']!,
+                widget.quote['content'] ?? widget.quote['text'] ?? '',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontStyle: FontStyle.italic,
                   color: Colors.white,
