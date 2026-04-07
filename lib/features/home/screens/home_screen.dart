@@ -28,6 +28,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  List<Map<String, dynamic>> _drawerCategories = [];
 
   final List<Widget> _screens = [
     const HomeContent(),
@@ -48,6 +49,59 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _selectedIndex = index;
     });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDrawerCategories();
+  }
+
+  Future<void> _loadDrawerCategories() async {
+    try {
+      final cats = await ApiService.getCategories();
+      final categoryStyles = <String, Map<String, dynamic>>{
+        'haircut': {
+          'icon': Icons.content_cut,
+          'color': const Color(0xFF4CAF50),
+        },
+        'wedding': {'icon': Icons.favorite, 'color': const Color(0xFFE91E63)},
+        'baby': {'icon': Icons.child_care, 'color': const Color(0xFFFF9800)},
+        'nature': {'icon': Icons.landscape, 'color': const Color(0xFF8BC34A)},
+        'travel': {'icon': Icons.flight, 'color': const Color(0xFF2196F3)},
+        'architecture': {
+          'icon': Icons.apartment,
+          'color': const Color(0xFF9C27B0),
+        },
+        'fashion': {'icon': Icons.checkroom, 'color': const Color(0xFFFF5722)},
+        'food': {'icon': Icons.restaurant, 'color': const Color(0xFFFFEB3B)},
+      };
+
+      final drawerCats = <Map<String, dynamic>>[];
+      for (var cat in cats) {
+        final name = cat['name'] as String;
+        final lowerName = name.toLowerCase();
+        IconData icon = Icons.category_outlined;
+        Color color = Colors.primaries[name.hashCode % Colors.primaries.length];
+
+        categoryStyles.forEach((key, style) {
+          if (lowerName.contains(key)) {
+            icon = style['icon'] as IconData;
+            color = style['color'] as Color;
+          }
+        });
+
+        drawerCats.add({'name': name, 'icon': icon, 'color': color});
+      }
+
+      if (mounted) {
+        setState(() {
+          _drawerCategories = drawerCats;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading drawer categories: $e');
+    }
   }
 
   @override
@@ -83,9 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
           // Blur Effect
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(
-              color: Colors.black.withOpacity(0.4),
-            ),
+            child: Container(color: Colors.black.withOpacity(0.4)),
           ),
           // Content
           _screens[_selectedIndex],
@@ -114,35 +166,77 @@ class _HomeScreenState extends State<HomeScreen> {
               child: NavigationBar(
                 selectedIndex: _selectedIndex,
                 onDestinationSelected: _onItemTapped,
-                backgroundColor: Colors.transparent, // Transparent to show container decoration
+                backgroundColor: Colors
+                    .transparent, // Transparent to show container decoration
                 indicatorColor: Colors.white,
-                labelBehavior: NavigationDestinationLabelBehavior.alwaysHide, // Hiding labels
+                labelBehavior: NavigationDestinationLabelBehavior
+                    .alwaysHide, // Hiding labels
                 height: 80, // Taller bar
                 elevation: 0,
                 destinations: const [
                   NavigationDestination(
-                    icon: Icon(Icons.home_outlined, color: Colors.white70, size: 32),
-                    selectedIcon: Icon(Icons.home, color: Colors.black, size: 32),
+                    icon: Icon(
+                      Icons.home_outlined,
+                      color: Colors.white70,
+                      size: 32,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.home,
+                      color: Colors.black,
+                      size: 32,
+                    ),
                     label: 'Home',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.search_outlined, color: Colors.white70, size: 32),
-                    selectedIcon: Icon(Icons.search, color: Colors.black, size: 32),
+                    icon: Icon(
+                      Icons.search_outlined,
+                      color: Colors.white70,
+                      size: 32,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.search,
+                      color: Colors.black,
+                      size: 32,
+                    ),
                     label: 'Search',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.camera_alt_outlined, color: Colors.white70, size: 32),
-                    selectedIcon: Icon(Icons.camera_alt, color: Colors.black, size: 32),
+                    icon: Icon(
+                      Icons.camera_alt_outlined,
+                      color: Colors.white70,
+                      size: 32,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.camera_alt,
+                      color: Colors.black,
+                      size: 32,
+                    ),
                     label: 'Magic',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.style_outlined, color: Colors.white70, size: 32),
-                    selectedIcon: Icon(Icons.style, color: Colors.black, size: 32),
+                    icon: Icon(
+                      Icons.style_outlined,
+                      color: Colors.white70,
+                      size: 32,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.style,
+                      color: Colors.black,
+                      size: 32,
+                    ),
                     label: 'Swipe',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.person_outline, color: Colors.white70, size: 32),
-                    selectedIcon: Icon(Icons.person, color: Colors.black, size: 32),
+                    icon: Icon(
+                      Icons.person_outline,
+                      color: Colors.white70,
+                      size: 32,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.person,
+                      color: Colors.black,
+                      size: 32,
+                    ),
                     label: 'Profile',
                   ),
                 ],
@@ -162,20 +256,20 @@ class _HomeScreenState extends State<HomeScreen> {
           // Blur for Drawer
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              color: Colors.black.withOpacity(0.7),
-            ),
+            child: Container(color: Colors.black.withOpacity(0.7)),
           ),
           ListView(
             padding: EdgeInsets.zero,
             children: [
               UserAccountsDrawerHeader(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                ),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.1)),
                 accountName: const Text(
                   "Photos For",
-                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 accountEmail: const Text(
                   "Explore & Share",
@@ -188,66 +282,87 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               ListTile(
                 leading: const Icon(Icons.home_outlined, color: Colors.white),
-                title: const Text('Home', style: TextStyle(color: Colors.white)),
+                title: const Text(
+                  'Home',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   setState(() => _selectedIndex = 0);
                 },
               ),
               ExpansionTile(
-                leading: const Icon(Icons.category_outlined, color: Colors.white),
-                title: const Text('Categories', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.category_outlined,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Categories',
+                  style: TextStyle(color: Colors.white),
+                ),
                 iconColor: Colors.white,
                 collapsedIconColor: Colors.white,
                 children: [
-                  _buildDrawerItem(context, "Haircut Ideas", Icons.content_cut, () {
-                    Navigator.pop(context);
-                    _navigateToCategory(context, "Haircut Ideas", DataSource.haircutImages, filters: DataSource.haircutFilters);
-                  }),
-                  _buildDrawerItem(context, "Wedding Photos", Icons.favorite_border, () {
-                    Navigator.pop(context);
-                    _navigateToCategory(context, "Wedding Photos", DataSource.weddingImages, filters: DataSource.weddingFilters);
-                  }),
-                  _buildDrawerItem(context, "Baby Photos", Icons.child_care, () {
-                    Navigator.pop(context);
-                    _navigateToCategory(context, "Baby Photos", DataSource.babyImages, filters: DataSource.babyFilters);
-                  }),
-                  _buildDrawerItem(context, "Nature", Icons.landscape, () {
-                    Navigator.pop(context);
-                    _navigateToCategory(context, "Nature", DataSource.natureImages, filters: DataSource.natureFilters);
-                  }),
-                  _buildDrawerItem(context, "Travel", Icons.flight, () {
-                    Navigator.pop(context);
-                    _navigateToCategory(context, "Travel", DataSource.travelImages, filters: DataSource.travelFilters);
-                  }),
-                  _buildDrawerItem(context, "Architecture", Icons.apartment, () {
-                    Navigator.pop(context);
-                    _navigateToCategory(context, "Architecture", DataSource.architectureImages, filters: DataSource.architectureFilters);
-                  }),
+                  ..._drawerCategories.map((cat) {
+                    final name = cat['name'] as String;
+                    final icon =
+                        cat['icon'] as IconData? ?? Icons.category_outlined;
+                    return _buildDrawerItem(context, name, icon, () async {
+                      Navigator.pop(context);
+                      final images = await ApiService.getImagesByCategory(name);
+                      final photoModels = images
+                          .map((item) => PhotoModel.fromJson(item))
+                          .toList();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CategoryGridScreen(
+                            title: name,
+                            fallbackImages: photoModels,
+                          ),
+                        ),
+                      );
+                    });
+                  }).toList(),
                 ],
               ),
               ListTile(
-                leading: const Icon(Icons.format_quote_outlined, color: Colors.white),
-                title: const Text('Quotes', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.format_quote_outlined,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Quotes',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => QuotesScreen(fallbackQuotes: DataSource.quotesList),
+                      builder: (context) =>
+                          QuotesScreen(fallbackQuotes: DataSource.quotesList),
                     ),
                   );
                 },
               ),
               const Divider(color: Colors.white24),
               ListTile(
-                leading: const Icon(Icons.settings_outlined, color: Colors.white),
-                title: const Text('Settings', style: TextStyle(color: Colors.white)),
+                leading: const Icon(
+                  Icons.settings_outlined,
+                  color: Colors.white,
+                ),
+                title: const Text(
+                  'Settings',
+                  style: TextStyle(color: Colors.white),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(),
+                    ),
                   );
                 },
               ),
@@ -258,16 +373,29 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildDrawerItem(BuildContext context, String title, IconData icon, VoidCallback onTap) {
+  Widget _buildDrawerItem(
+    BuildContext context,
+    String title,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
     return ListTile(
       leading: Icon(icon, size: 20, color: Colors.white70),
-      title: Text(title, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 14, color: Colors.white70),
+      ),
       onTap: onTap,
       contentPadding: const EdgeInsets.only(left: 32, right: 16),
     );
   }
 
-  void _navigateToCategory(BuildContext context, String title, List<PhotoModel> images, {Map<String, List<PhotoModel>>? filters}) {
+  void _navigateToCategory(
+    BuildContext context,
+    String title,
+    List<PhotoModel> images, {
+    Map<String, List<PhotoModel>>? filters,
+  }) {
     if (filters != null && filters.isNotEmpty) {
       Navigator.push(
         context,
@@ -302,6 +430,7 @@ class HomeContent extends StatefulWidget {
 }
 
 class _HomeContentState extends State<HomeContent> {
+  List<Map<String, dynamic>> _drawerCategories = [];
   List<PhotoModel> _trendingImages = [];
   List<Map<String, dynamic>> _allCategories = [];
   bool _isLoading = true;
@@ -331,40 +460,37 @@ class _HomeContentState extends State<HomeContent> {
     try {
       // 1. Fetch Trending Images
       final response = await ApiService.getAllImages();
-      
+
       final supabaseImages = response
           .map((item) => PhotoModel.fromJson(item))
           .toList();
-      
+
       if (supabaseImages.isNotEmpty) {
         images.addAll(supabaseImages);
       }
 
       // 2. Fetch Categories ONLY from ApiService
       final cats = await ApiService.getCategories();
-      
+
       // Process database categories into UI models
       for (var cat in cats) {
         String name = cat['name'] as String;
         String lowerName = name.toLowerCase();
-        
+
         // Default style
         IconData icon = Icons.category_outlined;
-        Color color = Colors.primaries[name.hashCode % Colors.primaries.length].withOpacity(0.7);
+        Color color = Colors.primaries[name.hashCode % Colors.primaries.length]
+            .withOpacity(0.7);
 
         // Try to match with known styles
         _categoryStyles.forEach((key, style) {
-           if (lowerName.contains(key)) {
-             icon = style['icon'];
-             color = style['color'];
-           }
+          if (lowerName.contains(key)) {
+            icon = style['icon'];
+            color = style['color'];
+          }
         });
 
-        dbCategoriesList.add({
-          "name": name,
-          "icon": icon,
-          "color": color,
-        });
+        dbCategoriesList.add({"name": name, "icon": icon, "color": color});
       }
 
       // 3. Always add Quotes category
@@ -373,7 +499,6 @@ class _HomeContentState extends State<HomeContent> {
         "icon": Icons.format_quote,
         "color": const Color(0xFFAA00FF),
       });
-
     } catch (e) {
       debugPrint('Error fetching data: $e');
     }
@@ -394,7 +519,12 @@ class _HomeContentState extends State<HomeContent> {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 100, 16, 16), // Top padding for transparent AppBar
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              100,
+              16,
+              16,
+            ), // Top padding for transparent AppBar
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -420,12 +550,15 @@ class _HomeContentState extends State<HomeContent> {
                 // Search Bar (Visual)
                 GestureDetector(
                   onTap: () {
-                     // Switch to Explore Tab (Index 1)
-                     // Since this is HomeContent, we need to notify parent. 
-                     // For now, simple visual.
+                    // Switch to Explore Tab (Index 1)
+                    // Since this is HomeContent, we need to notify parent.
+                    // For now, simple visual.
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(16),
@@ -456,15 +589,19 @@ class _HomeContentState extends State<HomeContent> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const Icon(Icons.arrow_forward, color: Colors.white30, size: 20),
+                    const Icon(
+                      Icons.arrow_forward,
+                      color: Colors.white30,
+                      size: 20,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Story Strip
                 SizedBox(
                   height: 110,
-                  child: _isLoading 
+                  child: _isLoading
                       ? ListView.builder(
                           scrollDirection: Axis.horizontal,
                           itemCount: 5,
@@ -474,77 +611,112 @@ class _HomeContentState extends State<HomeContent> {
                               children: [
                                 ShimmerPlaceholder.circular(radius: 35),
                                 const SizedBox(height: 8),
-                                ShimmerPlaceholder.rectangular(width: 60, height: 10, borderRadius: 4),
+                                ShimmerPlaceholder.rectangular(
+                                  width: 60,
+                                  height: 10,
+                                  borderRadius: 4,
+                                ),
                               ],
                             ),
                           ),
                         )
-                      : _trendingImages.isEmpty 
-                          ? const Center(child: Text("No new images", style: TextStyle(color: Colors.white70)))
-                          : ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _trendingImages.length,
-                    itemBuilder: (context, index) {
-                      final photo = _trendingImages[index];
-                      return ScaleButton(
-                        onPressed: () {
-                          Navigator.push(context, FadeRoute(page: ImageDetailScreen(photo: photo)));
-                        },
-                        child: Container(
-                          margin: const EdgeInsets.only(right: 16),
-                          child: Column(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(3), // Border width
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: const LinearGradient(
-                                    colors: [Colors.purple, Colors.orange],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(2), // Gap between border and image
-                                  decoration: const BoxDecoration(
-                                    color: Colors.black, // Match background
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: CircleAvatar(
-                                    radius: 32,
-                                    backgroundImage: NetworkImage(photo.url),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                width: 75,
-                                child: Text(
-                                  photo.category,
-                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.center,
-                                ),
-                              ),
-                            ],
+                      : _trendingImages.isEmpty
+                      ? const Center(
+                          child: Text(
+                            "No new images",
+                            style: TextStyle(color: Colors.white70),
                           ),
+                        )
+                      : ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _trendingImages.length,
+                          itemBuilder: (context, index) {
+                            final photo = _trendingImages[index];
+                            return ScaleButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  FadeRoute(
+                                    page: ImageDetailScreen(photo: photo),
+                                  ),
+                                );
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 16),
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(
+                                        3,
+                                      ), // Border width
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Colors.purple,
+                                            Colors.orange,
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                      ),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(
+                                          2,
+                                        ), // Gap between border and image
+                                        decoration: const BoxDecoration(
+                                          color:
+                                              Colors.black, // Match background
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: CircleAvatar(
+                                          radius: 32,
+                                          backgroundImage: NetworkImage(
+                                            photo.url,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    SizedBox(
+                                      width: 75,
+                                      child: Text(
+                                        photo.category,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Categories Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       "Categories",
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    const Icon(Icons.grid_view, color: Colors.white30, size: 20),
+                    const Icon(
+                      Icons.grid_view,
+                      color: Colors.white30,
+                      size: 20,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -552,7 +724,7 @@ class _HomeContentState extends State<HomeContent> {
             ),
           ),
         ),
-        
+
         // Masonry Grid
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: 20.0),
@@ -570,21 +742,40 @@ class _HomeContentState extends State<HomeContent> {
                 category['color'],
                 () {
                   if (category['name'] == "Quotes") {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => QuotesScreen(fallbackQuotes: const [])));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            QuotesScreen(fallbackQuotes: const []),
+                      ),
+                    );
                   } else {
-                    _navigateToCategory(context, category['name'], [], filters: {});
+                    _navigateToCategory(
+                      context,
+                      category['name'],
+                      [],
+                      filters: {},
+                    );
                   }
                 },
               );
             },
           ),
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 120)), // Bottom padding for nav bar
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 120),
+        ), // Bottom padding for nav bar
       ],
     );
   }
 
-  Widget _buildModernCategoryCard(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildModernCategoryCard(
+    BuildContext context,
+    String title,
+    IconData icon,
+    Color color,
+    VoidCallback onTap,
+  ) {
     return ScaleButton(
       onPressed: onTap,
       child: ClipRRect(
@@ -600,7 +791,10 @@ class _HomeContentState extends State<HomeContent> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Colors.white.withOpacity(0.15), Colors.white.withOpacity(0.05)],
+                colors: [
+                  Colors.white.withOpacity(0.15),
+                  Colors.white.withOpacity(0.05),
+                ],
               ),
             ),
             child: Column(
@@ -617,7 +811,12 @@ class _HomeContentState extends State<HomeContent> {
                 const SizedBox(height: 16),
                 Text(
                   title,
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16, letterSpacing: 0.5),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    letterSpacing: 0.5,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -628,15 +827,23 @@ class _HomeContentState extends State<HomeContent> {
     );
   }
 
-  void _navigateToCategory(BuildContext context, String title, List<PhotoModel> images, {Map<String, List<PhotoModel>>? filters}) {
+  void _navigateToCategory(
+    BuildContext context,
+    String title,
+    List<PhotoModel> images, {
+    Map<String, List<PhotoModel>>? filters,
+  }) {
     // Always navigate to SubCategoryScreen to check for dynamic subcategories
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => SubCategoryScreen(
           title: title,
-          allImages: images, // This might be empty, SubCategoryScreen will fetch if needed
-          subCategories: filters ?? {}, // This might be empty, SubCategoryScreen will fetch
+          allImages:
+              images, // This might be empty, SubCategoryScreen will fetch if needed
+          subCategories:
+              filters ??
+              {}, // This might be empty, SubCategoryScreen will fetch
         ),
       ),
     );
