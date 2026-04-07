@@ -33,10 +33,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _loadUserData() {
     final user = ApiService.currentUser;
     if (user != null) {
-      _nameController.text = user['name'] as String? ?? '';
-      _phoneController.text = user['phone'] as String? ?? '';
+      _nameController.text = user['fullName'] as String? ?? '';
+      _phoneController.text = user['phoneNumber'] as String? ?? '';
       _selectedGender = user['gender'] as String?;
-      _currentAvatarUrl = user['avatar_url'] as String?;
+      _currentAvatarUrl = user['avatar'] as String?;
     }
   }
 

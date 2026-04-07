@@ -61,8 +61,10 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        await setToken(data['token']);
+        _token = data['token'];
         _currentUser = data['user'];
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', data['token']);
         return true;
       }
       return false;
@@ -90,8 +92,10 @@ class ApiService {
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        await setToken(data['token']);
+        _token = data['token'];
         _currentUser = data['user'];
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', data['token']);
         return true;
       }
       return false;
