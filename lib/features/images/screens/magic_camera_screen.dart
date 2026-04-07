@@ -1,6 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Re-added for kIsWeb
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/models/photo_model.dart';
 import 'dart:async';
@@ -9,18 +9,21 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:gal/gal.dart';
 import 'dart:io';
 import 'package:photo_view/photo_view.dart';
-import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart'; // Re-added import
+import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import '../../../core/services/pose_detection_service.dart';
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart'; // Import for Face type
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../../../core/services/face_detection_service.dart';
 import '../../../core/services/filter_asset_service.dart';
 import '../models/face_filter_model.dart';
 import '../widgets/face_painter.dart';
 import '../../../core/services/tts_service.dart';
 import '../../../core/utils/mlkit_utils.dart';
-import '../../../core/utils/sound_utils.dart'; // Import SoundUtils
-import '../../../core/services/selfie_segmentation_service.dart'; // Import Segmentation
-import '../../../utils/image_downloader.dart'; // Reusing your existing downloader if available or using File
+import '../../../core/utils/sound_utils.dart';
+import '../../../core/services/selfie_segmentation_service.dart';
+import 'package:google_mlkit_object_detection/google_mlkit_object_detection.dart';
+import 'package:google_mlkit_image_labeling/google_mlkit_image_labeling.dart';
+import '../../../core/utils/gesture_detector.dart';
+import '../../../utils/image_downloader.dart';
 import '../../../core/services/face_filter_service.dart';
 import '../../../core/utils/face_filter_processor.dart';
 
@@ -33,61 +36,178 @@ class MagicCameraScreen extends StatefulWidget {
   State<MagicCameraScreen> createState() => _MagicCameraScreenState();
 }
 
-class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindingObserver {
+class _MagicCameraScreenState extends State<MagicCameraScreen>
+    with WidgetsBindingObserver {
   CameraController? _controller;
   List<CameraDescription> _cameras = [];
   bool _isInit = false;
-  double _opacity = 0.5;
-  
-  // Pro Features State
-  int _gridMode = 0; // 0: Off, 1: Thirds, 2: Golden
+
+  // AI Settings State
+  bool _aiCoachEnabled = false;
+  bool _handGestureEnabled = false;
+  bool _emotionCaptureEnabled = false;
+  bool _objectDetectionEnabled = false;
+  bool _sceneRecognitionEnabled = false;
+  bool _smartCompositionEnabled = false;
+
+  // Pro Settings
+  int _gridMode = 0;
   int _timerDuration = 0;
   FlashMode _flashMode = FlashMode.auto;
   bool _isCountingDown = false;
   int _countdownValue = 0;
 
-  // V2.1 Features (Zoom, Leveler, Split)
+  // Zoom
   double _currentZoom = 1.0;
   double _minZoom = 1.0;
   double _maxZoom = 1.0;
-  double _scaleFactorBase = 1.0; // For pinch gesture
-  
+  double _scaleFactorBase = 1.0;
+
+  // Split/Ghost
   bool _isSplitMode = false;
   bool _isLevelerActive = false;
   bool _isGhostMode = false;
-  double _deviceRoll = 0.0; 
+  double _deviceRoll = 0.0;
   StreamSubscription? _sensorSubscription;
 
-  // AI Coach State
+  // AI Services
   final PoseDetectionService _poseService = PoseDetectionService();
-  final FaceDetectionService _faceService = FaceDetectionService(); // Initialize FaceService
-  final SelfieSegmentationService _segmentationService = SelfieSegmentationService();
+  final FaceDetectionService _faceService = FaceDetectionService();
+  ObjectDetector? _objectDetector;
+  ImageLabeler? _imageLabeler;
+  final SelfieSegmentationService _segmentationService =
+      SelfieSegmentationService();
   final TtsService _ttsService = TtsService();
-  bool _isAiCoachActive = false;
-  
-  // New Face Filter State
-  bool _isFaceFilterActive = false; 
+
+  // Detected Data
   List<Face> _detectedFaces = [];
-  List<FaceFilter> _availableFilters = FilterRepository.filters;
-  int _selectedFilterIndex = 0; // Default: None
+  List<DetectedObject> _detectedObjects = [];
+  List<ImageLabel> _sceneLabels = [];
+  Pose? _detectedPose;
+  Pose? _referencePose;
+  String? _dominantScene;
+  String? _lastDetectedGesture;
+
+  // Face Filters
+  bool _isFaceFilterActive = false;
+  List<FaceFilter> _availableFilters = [];
+  int _selectedFilterIndex = 0;
   bool _isLoadingAssets = false;
   bool _isPortraitMode = false;
   bool _isAutoShutterEnabled = false;
   bool _isProcessingFrame = false;
-  Pose? _detectedPose;
-  Pose? _referencePose;
-  double _matchScore = 0.0;
-  String _feedbackText = "Align body with skeleton";
-  
-  // Auto-Shutter State
+
+  // Auto-Shutter
   Timer? _autoTriggerTimer;
   int _consecutiveGoodFrames = 0;
   bool _isAutoTriggering = false;
+
+  // Gesture Detection
+  final GestureMLService _gestureService = GestureMLService();
+  List<HandGesture> _lastGestures = [];
+  DateTime? _lastGestureTime;
+
+  // Match Score
+  double _matchScore = 0.0;
+  String _feedbackText = "Align body with skeleton";
+
+  int _selectedCameraIndex = 0;
+  ResolutionPreset _currentResolutionPreset = ResolutionPreset.high;
+  XFile? _lastCapturedPhoto;
+
+  int _currentAspectRatioIndex = 0;
+  final List<double> _aspectRatios = [3 / 4, 9 / 16, 1.0];
+  final List<String> _aspectRatioLabels = ["3:4", "9:16", "1:1"];
+
+  int _filterIndex = 0;
+  final List<ColorFilter?> _filters = [
+    null,
+    const ColorFilter.matrix([
+      0.33,
+      0.33,
+      0.33,
+      0,
+      0,
+      0.33,
+      0.33,
+      0.33,
+      0,
+      0,
+      0.33,
+      0.33,
+      0.33,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ]),
+    const ColorFilter.matrix([
+      0.393,
+      0.769,
+      0.189,
+      0,
+      0,
+      0.349,
+      0.686,
+      0.168,
+      0,
+      0,
+      0.272,
+      0.534,
+      0.131,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ]),
+    const ColorFilter.matrix([
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1.2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ]),
+  ];
+  final List<String> _filterLabels = ["Norm", "B&W", "Sepia", "Cold"];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Initialize ML services with correct API
+    _objectDetector = ObjectDetector(
+      options: ObjectDetectorOptions(
+        mode: DetectionMode.single,
+        classifyObjects: true,
+        multipleObjects: true,
+      ),
+    );
+    _imageLabeler = ImageLabeler(
+      options: ImageLabelerOptions(confidenceThreshold: 0.5),
+    );
+
     _initCamera();
     _loadReferencePose();
     _loadFaceFilters();
@@ -96,9 +216,9 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
   Future<void> _loadFaceFilters() async {
     final filters = await FaceFilterService.getFilters();
     if (mounted) {
-       setState(() {
-         _availableFilters = filters;
-       });
+      setState(() {
+        _availableFilters = filters;
+      });
     }
   }
 
@@ -110,78 +230,15 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
         final inputImage = InputImage.fromFilePath(file.path);
         final poses = await _poseService.processImage(inputImage);
         if (poses.isNotEmpty) {
-           if (mounted) setState(() => _referencePose = poses.first);
+          if (mounted) setState(() => _referencePose = poses.first);
         }
-        // Cleanup temp file? ML Kit might block it during process, maybe safe now?
-        // file.delete(); 
       }
     } catch (e) {
       debugPrint("Error loading reference pose: $e");
     }
   }
 
-  int _selectedCameraIndex = 0;
-  ResolutionPreset _currentResolutionPreset = ResolutionPreset.high;
-  XFile? _lastCapturedPhoto; // For Quick Review
-  
-  // Aspect Ratio State
-  int _currentAspectRatioIndex = 0;
-  final List<double> _aspectRatios = [3 / 4, 9 / 16, 1.0];
-  final List<String> _aspectRatioLabels = ["3:4", "9:16", "1:1"];
-
-  // Filter State
-  int _filterIndex = 0;
-  final List<ColorFilter?> _filters = [
-    null, // Original
-    const ColorFilter.matrix([ // B&W
-      0.33, 0.33, 0.33, 0, 0,
-      0.33, 0.33, 0.33, 0, 0,
-      0.33, 0.33, 0.33, 0, 0,
-      0, 0, 0, 1, 0,
-    ]),
-    const ColorFilter.matrix([ // Sepia
-      0.393, 0.769, 0.189, 0, 0,
-      0.349, 0.686, 0.168, 0, 0,
-      0.272, 0.534, 0.131, 0, 0,
-      0, 0, 0, 1, 0,
-    ]),
-    const ColorFilter.matrix([ // Cold / Blue
-      1, 0, 0, 0, 0,
-      0, 1, 0, 0, 0,
-      0, 0, 1.2, 0, 0, // Boost Blue
-      0, 0, 0, 1, 0,
-    ]),
-  ];
-  final List<String> _filterLabels = ["Norm", "B&W", "Sepia", "Cold"];
-
-  // Zoom State
-  // double _currentZoom = 1.0; // Already defined above
-  // double _minZoom = 1.0;
-  // double _maxZoom = 1.0;
-
-  // Flash Mode is already defined
-  
-  // Ghost Mode State (Missing in previous context)
-  // Ensure these are not duplicated if they appear elsewhere.
-  // Based on reading, _isGhostMode was missing.
-  // _isLevelerActive was missing.
-  
-  // Note: I already added them in Step 141. 
-  // Code view shows them at line 145-149.
-  // So they ARE present now. 
-  // I will just add a comment to ensure compilation.
-  // No changes needed here actually if Step 141 applied correctly.
-  // But to be 100% sure and avoid "Setter not found", I will re-declare them only if I'm replacing the block.
-  
-  // The error log showed them missing. Step 141 added them.
-  // So I'm confident they are there.
-  
-  // I'll ensure SkeletonPainter _drawPose is robust.
-
-
-
   Future<void> _initCamera() async {
-    // ... existing permission check ...
     final status = await Permission.camera.request();
     if (status.isDenied) {
       if (mounted) {
@@ -197,17 +254,18 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
       _cameras = await availableCameras();
       if (_cameras.isEmpty) return;
 
-      // Use selected index
       _controller = CameraController(
         _cameras[_selectedCameraIndex],
-        _currentResolutionPreset, // Use dynamic preset
+        _currentResolutionPreset,
         enableAudio: false,
-        imageFormatGroup: Platform.isAndroid ? ImageFormatGroup.nv21 : ImageFormatGroup.bgra8888, // Optimize for ML Kit
+        imageFormatGroup: Platform.isAndroid
+            ? ImageFormatGroup.nv21
+            : ImageFormatGroup.bgra8888,
       );
 
       await _controller!.initialize();
       await _controller!.setFlashMode(_flashMode);
-      
+
       _minZoom = await _controller!.getMinZoomLevel();
       _maxZoom = await _controller!.getMaxZoomLevel();
 
@@ -222,184 +280,168 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
   Future<void> _updateImageStream() async {
     if (_controller == null || !_controller!.value.isInitialized) return;
 
-    final shouldStream = _isAiCoachActive || _isFaceFilterActive;
-    
+    final shouldStream =
+        _aiCoachEnabled ||
+        _isFaceFilterActive ||
+        _handGestureEnabled ||
+        _emotionCaptureEnabled ||
+        _objectDetectionEnabled;
+
     if (shouldStream && !_controller!.value.isStreamingImages) {
-        try {
-          await _controller!.startImageStream(_processCameraImage);
-        } catch (e) {
-          debugPrint("Error starting stream: $e");
-        }
+      try {
+        await _controller!.startImageStream(_processCameraImage);
+      } catch (e) {
+        debugPrint("Error starting stream: $e");
+      }
     } else if (!shouldStream && _controller!.value.isStreamingImages) {
-        await _controller!.stopImageStream();
+      await _controller!.stopImageStream();
     }
-  }
-
-  Future<void> _toggleAiCoach() async {
-    // Platform Check: ML Kit is Android/iOS only
-    if (kIsWeb || (!Platform.isAndroid && !Platform.isIOS)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('AI Coach is only available on Android & iOS devices! 📱'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-       if (_isAiCoachActive) {
-         _isAiCoachActive = false;
-         _detectedPose = null;
-         _matchScore = 0.0;
-         _ttsService.stop();
-       } else {
-         _isAiCoachActive = true;
-         // Disable Face Filters if turning on Coach to avoid clutter? Optional.
-         // _isFaceFilterActive = false; 
-         // _faceFilterType = FaceFilterType.none;
-       }
-    });
-    
-    await _updateImageStream();
-  }
-
-
-
-  void _togglePortraitMode() {
-    setState(() {
-      _isPortraitMode = !_isPortraitMode;
-      if (_isPortraitMode) {
-         // Maybe show a toast
-         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Portrait Mode: ON (Background Blur)'), duration: Duration(seconds: 1)));
-      }
-    });
-  }
-
-  void _toggleAutoShutter() {
-    setState(() {
-      _isAutoShutterEnabled = !_isAutoShutterEnabled;
-      _consecutiveGoodFrames = 0;
-      _isAutoTriggering = false;
-    });
   }
 
   void _processCameraImage(CameraImage image) async {
-    if (_isProcessingFrame || (!_isAiCoachActive && !_isFaceFilterActive)) return;
+    if (_isProcessingFrame) return;
+    if (!_aiCoachEnabled &&
+        !_isFaceFilterActive &&
+        !_handGestureEnabled &&
+        !_emotionCaptureEnabled &&
+        !_objectDetectionEnabled &&
+        !_sceneRecognitionEnabled)
+      return;
+
     _isProcessingFrame = true;
 
     try {
-      final inputImage = MLKitUtils.convertCameraImage(image, _cameras[_selectedCameraIndex]);
-      if (inputImage != null) {
-        
-        // Face Detection Logic
-        if (_isFaceFilterActive) {
-            final faces = await _faceService.processImage(inputImage);
-            if (mounted) {
-               setState(() => _detectedFaces = faces);
-               
-               // Activity: Smile Shutter
-               for (final face in faces) {
-                  if (face.smilingProbability != null && face.smilingProbability! > 0.8) {
-                       if (!_isCountingDown && !_controller!.value.isTakingPicture && _isAutoShutterEnabled) {
-                          _takePicture();
-                          _ttsService.speak("Nice smile!");
-                      }
-                  }
-               }
+      final inputImage = MLKitUtils.convertCameraImage(
+        image,
+        _cameras[_selectedCameraIndex],
+      );
+      if (inputImage == null) {
+        _isProcessingFrame = false;
+        return;
+      }
+
+      // Face Detection & Emotion
+      if (_isFaceFilterActive || _emotionCaptureEnabled) {
+        final faces = await _faceService.processImage(inputImage);
+        if (mounted) {
+          setState(() => _detectedFaces = faces);
+        }
+
+        if (_emotionCaptureEnabled) {
+          for (final face in faces) {
+            if (face.smilingProbability != null &&
+                face.smilingProbability! > 0.8) {
+              if (!_isCountingDown &&
+                  !_controller!.value.isTakingPicture &&
+                  _isAutoShutterEnabled) {
+                _takePicture();
+                _ttsService.speak("Nice smile!");
+              }
             }
-        } else {
-           if (mounted && _detectedFaces.isNotEmpty) setState(() => _detectedFaces = []);
+          }
         }
+      }
 
-        // Pose Detection Logic
-        if (_isAiCoachActive) {
-          final poses = await _poseService.processImage(inputImage);
-          // ... (rest of pose logic) ...
+      // Hand Gesture Detection
+      if (_handGestureEnabled) {
+        final gestures = await _gestureService.detectGestures(inputImage);
+        if (gestures.isNotEmpty && mounted) {
+          final now = DateTime.now();
+          if (_lastGestureTime == null ||
+              now.difference(_lastGestureTime!) > const Duration(seconds: 2)) {
+            _lastGestures = gestures;
+            _lastGestureTime = now;
+
+            for (final gesture in gestures) {
+              if (gesture == HandGesture.raisedHand &&
+                  !_controller!.value.isTakingPicture) {
+                _takePicture();
+                _ttsService.speak("Captured!");
+                break;
+              } else if (gesture == HandGesture.peace) {
+                _toggleCamera();
+                _ttsService.speak("Camera switched");
+                break;
+              } else if (gesture == HandGesture.thumbsUp) {
+                _toggleFlash();
+                _ttsService.speak("Flash toggled");
+                break;
+              } else if (gesture == HandGesture.openPalm) {
+                _toggleTimer();
+                _ttsService.speak(
+                  _timerDuration > 0
+                      ? "Timer: ${_timerDuration}s"
+                      : "Timer off",
+                );
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // Object Detection
+      if (_objectDetectionEnabled && _objectDetector != null) {
+        final objects = await _objectDetector!.processImage(inputImage);
+        if (mounted) {
+          setState(() => _detectedObjects = objects);
+        }
+      }
+
+      // Scene Recognition
+      if (_sceneRecognitionEnabled && _imageLabeler != null) {
+        final labels = await _imageLabeler!.processImage(inputImage);
+        if (labels.isNotEmpty && mounted) {
+          setState(() {
+            _sceneLabels = labels;
+            _dominantScene = labels.first.label;
+          });
+        }
+      }
+
+      // Pose Detection
+      if (_aiCoachEnabled) {
+        final poses = await _poseService.processImage(inputImage);
         if (poses.isNotEmpty) {
-           final pose = poses.first;
-           double score = 0.0;
-           String feedback = "Hold steady...";
-           
-           if (_referencePose != null) {
-              score = _poseService.calculateSimilarity(_referencePose!, pose);
-              feedback = _poseService.getPoseFeedback(_referencePose!, pose);
-           } else {
-             score = 0.0; 
-             feedback = "No reference pose found";
-           }
+          final pose = poses.first;
+          double score = 0.0;
+          String feedback = "Hold steady...";
 
-           if (mounted) {
-             setState(() {
-               _detectedPose = pose;
-               _matchScore = score;
-               _feedbackText = feedback;
-             });
-             
-             // Gesture Control: Raise Hand to Snap (Right Wrist higher than Right Ear)
-             final rightWrist = pose.landmarks[PoseLandmarkType.rightWrist];
-             final rightEar = pose.landmarks[PoseLandmarkType.rightEar];
-             
-             if (rightWrist != null && rightEar != null && rightWrist.y < rightEar.y && !_controller!.value.isTakingPicture) {
-                 if (_timerDuration == 0) _timerDuration = 3; 
-                 if (!_isCountingDown) {
-                    _takePicture();
-                    _ttsService.speak("Gesture detected!");
-                 }
-             }
+          if (_referencePose != null) {
+            score = _poseService.calculateSimilarity(_referencePose!, pose);
+            feedback = _poseService.getPoseFeedback(_referencePose!, pose);
+          }
 
-             // Auto-Shutter Logic
-             if (_isAutoShutterEnabled && !_isAutoTriggering && !_controller!.value.isTakingPicture) {
-                if (score > 85) {
-                   _consecutiveGoodFrames++;
-                   
-                   // Audio Feedback for High Score
-                   if (_consecutiveGoodFrames == 1) {
-                      _ttsService.speak("Perfect! Hold it!");
-                   }
-                   
-                   if (_consecutiveGoodFrames > 20) { 
-                      _isAutoTriggering = true;
-                      _autoTriggerTimer?.cancel();
-                       // Small delay/countdown visualization could go here
-                      _takePicture().then((_) {
-                         if (mounted) {
-                           setState(() {
-                             _isAutoTriggering = false;
-                             _consecutiveGoodFrames = 0;
-                           });
-                         }
+          if (mounted) {
+            setState(() {
+              _detectedPose = pose;
+              _matchScore = score;
+              _feedbackText = feedback;
+            });
+
+            if (_isAutoShutterEnabled &&
+                !_isAutoTriggering &&
+                !_controller!.value.isTakingPicture) {
+              if (score > 85) {
+                _consecutiveGoodFrames++;
+                if (_consecutiveGoodFrames > 20) {
+                  _isAutoTriggering = true;
+                  _takePicture().then((_) {
+                    if (mounted) {
+                      setState(() {
+                        _isAutoTriggering = false;
+                        _consecutiveGoodFrames = 0;
                       });
-                   }
-                } else {
-                   _consecutiveGoodFrames = 0;
-                   // Throttle feedback for corrections
-                   if (score > 40 && feedback != _feedbackText) {
-                      _ttsService.speak(feedback);
-                   }
+                    }
+                  });
                 }
-             } else if (_isAiCoachActive && score > 85) {
-                 // Even if auto-shutter is off, praise good poses
-                  _ttsService.speak("Great pose!");
-             }
-           }
-        } else {
-           if (mounted) setState(() => _detectedPose = null);
+              } else {
+                _consecutiveGoodFrames = 0;
+              }
+            }
+          }
         }
-      } else {
-         if (mounted) setState(() => _detectedPose = null);
       }
-    } 
-      
-      // Portrait Mode Logic (Placeholder for future stream integration)
-      if (_isPortraitMode && !_isAiCoachActive) {
-          // In a real implementation, we would process the image with _segmentationService here
-          // and update a segmentation mask to be applied in the build method.
-          // For now, the user sees the "ON" state via the toggle.
-      }
-
     } catch (e) {
       debugPrint("Error processing frame: $e");
     } finally {
@@ -407,42 +449,359 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     }
   }
 
-  Future<void> _toggleCamera() async {
-    if (_cameras.length < 2) return;
-    
-    setState(() {
-      _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras.length;
-      _isInit = false; // Show loader while switching
-    });
-    
-    await _controller?.dispose();
-    await _initCamera();
+  void _showSettingsPanel() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black87,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (context) => _buildSettingsPanel(),
+    );
   }
 
-  Future<void> _toggleResolution() async {
+  Widget _buildSettingsPanel() {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return SingleChildScrollView(
+          controller: scrollController,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white30,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Camera Settings',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                _buildSettingsSection('AI Features', [
+                  _buildSwitchTile(
+                    'Hand Gesture Control',
+                    'Raise hand to capture, peace to switch camera',
+                    Icons.pan_tool,
+                    _handGestureEnabled,
+                    (v) {
+                      setState(() => _handGestureEnabled = v);
+                      _updateImageStream();
+                    },
+                  ),
+                  _buildSwitchTile(
+                    'Emotion Capture',
+                    'Auto-capture when everyone smiles',
+                    Icons.sentiment_satisfied_alt,
+                    _emotionCaptureEnabled,
+                    (v) {
+                      setState(() {
+                        _emotionCaptureEnabled = v;
+                        if (v) _isAutoShutterEnabled = true;
+                      });
+                      _updateImageStream();
+                    },
+                  ),
+                  _buildSwitchTile(
+                    'AI Coach',
+                    'Pose matching with skeleton overlay',
+                    Icons.accessibility_new,
+                    _aiCoachEnabled,
+                    (v) {
+                      setState(() => _aiCoachEnabled = v);
+                      _updateImageStream();
+                    },
+                  ),
+                  _buildSwitchTile(
+                    'Object Detection',
+                    'Show labels on detected objects',
+                    Icons.category,
+                    _objectDetectionEnabled,
+                    (v) {
+                      setState(() => _objectDetectionEnabled = v);
+                      _updateImageStream();
+                    },
+                  ),
+                  _buildSwitchTile(
+                    'Scene Recognition',
+                    'Auto-detect what you\'re photographing',
+                    Icons.auto_awesome,
+                    _sceneRecognitionEnabled,
+                    (v) {
+                      setState(() => _sceneRecognitionEnabled = v);
+                      _updateImageStream();
+                    },
+                  ),
+                  _buildSwitchTile(
+                    'Smart Composition',
+                    'AI composition guide',
+                    Icons.rule,
+                    _smartCompositionEnabled,
+                    (v) {
+                      setState(() => _smartCompositionEnabled = v);
+                    },
+                  ),
+                  _buildSwitchTile(
+                    'Face Filters',
+                    'AR face masks and effects',
+                    Icons.face_retouching_natural,
+                    _isFaceFilterActive,
+                    (v) {
+                      setState(() => _isFaceFilterActive = v);
+                      _updateImageStream();
+                    },
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+                _buildSettingsSection('Camera Controls', [
+                  _buildSwitchTile(
+                    'Portrait Mode',
+                    'Background blur effect',
+                    Icons.blur_on,
+                    _isPortraitMode,
+                    (v) => setState(() => _isPortraitMode = v),
+                  ),
+                  _buildSwitchTile(
+                    'Grid Overlay',
+                    'Composition grid lines',
+                    Icons.grid_on,
+                    _gridMode != 0,
+                    (v) => setState(() => _gridMode = v ? 1 : 0),
+                  ),
+                  _buildSwitchTile(
+                    'Leveler',
+                    'Device tilt indicator',
+                    Icons.screen_rotation,
+                    _isLevelerActive,
+                    (v) => _toggleLeveler(),
+                  ),
+                  _buildSwitchTile(
+                    'Ghost Mode',
+                    'Reference photo overlay',
+                    Icons.contrast,
+                    _isGhostMode,
+                    (v) => setState(() => _isGhostMode = v),
+                  ),
+                  _buildSwitchTile(
+                    'Split View',
+                    'Side-by-side camera and reference',
+                    Icons.vertical_split,
+                    _isSplitMode,
+                    (v) => setState(() => _isSplitMode = v),
+                  ),
+                  _buildSwitchTile(
+                    'Auto-Shutter',
+                    'Auto-capture when pose matches',
+                    Icons.hdr_auto,
+                    _isAutoShutterEnabled,
+                    (v) => setState(() => _isAutoShutterEnabled = v),
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+                _buildSettingsSection('Quick Settings', [
+                  _buildSliderTile(
+                    'Timer',
+                    '${_timerDuration}s',
+                    Icons.timer,
+                    0,
+                    10,
+                    _timerDuration.toDouble(),
+                    (v) => setState(() => _timerDuration = v.round()),
+                  ),
+                  _buildOptionTile(
+                    'Flash',
+                    _getFlashLabel(),
+                    Icons.flash_on,
+                    () => _cycleFlash(),
+                  ),
+                  _buildOptionTile(
+                    'Resolution',
+                    _currentResolutionPreset == ResolutionPreset.high
+                        ? 'HD'
+                        : 'Max',
+                    Icons.hd,
+                    () => _toggleResolution(),
+                  ),
+                  _buildOptionTile(
+                    'Aspect Ratio',
+                    _aspectRatioLabels[_currentAspectRatioIndex],
+                    Icons.crop,
+                    () => _toggleAspectRatio(),
+                  ),
+                  _buildOptionTile(
+                    'Filter',
+                    _filterLabels[_filterIndex],
+                    Icons.palette,
+                    () => _toggleFilter(),
+                  ),
+                ]),
+
+                const SizedBox(height: 30),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSettingsSection(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.amber,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...children,
+      ],
+    );
+  }
+
+  Widget _buildSwitchTile(
+    String title,
+    String subtitle,
+    IconData icon,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SwitchListTile(
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(color: Colors.white54, fontSize: 12),
+        ),
+        secondary: Icon(icon, color: value ? Colors.amber : Colors.white54),
+        value: value,
+        onChanged: onChanged,
+        activeColor: Colors.amber,
+      ),
+    );
+  }
+
+  Widget _buildSliderTile(
+    String title,
+    String value,
+    IconData icon,
+    double min,
+    double max,
+    double current,
+    ValueChanged<double> onChanged,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: Colors.white54),
+              const SizedBox(width: 10),
+              Text(title, style: const TextStyle(color: Colors.white)),
+              const Spacer(),
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.amber,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          Slider(
+            value: current,
+            min: min,
+            max: max,
+            onChanged: onChanged,
+            activeColor: Colors.amber,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOptionTile(
+    String title,
+    String value,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return ListTile(
+      leading: Icon(icon, color: Colors.white54),
+      title: Text(title, style: const TextStyle(color: Colors.white)),
+      trailing: Text(value, style: const TextStyle(color: Colors.amber)),
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _toggleCamera() async {
+    if (_cameras.length < 2) return;
     setState(() {
-      _currentResolutionPreset = _currentResolutionPreset == ResolutionPreset.high 
-          ? ResolutionPreset.max 
+      _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras.length;
+      _isInit = false;
+    });
+    await _controller?.dispose();
+    await _initCamera();
+    _updateImageStream();
+  }
+
+  void _toggleResolution() {
+    setState(() {
+      _currentResolutionPreset =
+          _currentResolutionPreset == ResolutionPreset.high
+          ? ResolutionPreset.max
           : ResolutionPreset.high;
       _isInit = false;
     });
-    
-    await _controller?.dispose();
-    await _initCamera();
-    
-    // Resume AI stream if it was active
-    if (_isAiCoachActive) {
-       _toggleAiCoach(); // This toggles it off then on? No, logic needs check.
-       // Actually _toggleAiCoach toggles. We need to force restart stream.
-       // Simpler: Just let user re-enable AI or handle it. 
-       // For UX, let's keep it simple: Switching Res stops AI. User can tap to restart.
-       setState(() => _isAiCoachActive = false);
-    }
+    _initCamera();
   }
 
   void _toggleAspectRatio() {
     setState(() {
-      _currentAspectRatioIndex = (_currentAspectRatioIndex + 1) % _aspectRatios.length;
+      _currentAspectRatioIndex =
+          (_currentAspectRatioIndex + 1) % _aspectRatios.length;
     });
   }
 
@@ -452,172 +811,14 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     });
   }
 
-  // --- Face Filter Logic ---
-  
-  void _toggleFaceFilterMode() async {
-     setState(() {
-        _isFaceFilterActive = !_isFaceFilterActive;
-        // If turning on, ensure first asset is loaded if needed?
-        // Logic: Just toggle mode. The UI selector below will handle switching specific filters.
-        if (_isFaceFilterActive) {
-           _isAiCoachActive = false; // Exclusive modes
-        }
-     });
-     await _updateImageStream();
-  }
-
-  Future<void> _selectFilter(int index) async {
-     final filter = _availableFilters[index];
-     
-     if (filter.type == FaceFilterCapability.asset && filter.cachedImage == null && filter.assetUrl != null) {
-        setState(() => _isLoadingAssets = true);
-        final image = await FilterAssetService.loadFilterAsset(filter.assetUrl!);
-        filter.cachedImage = image;
-        setState(() => _isLoadingAssets = false);
-     }
-     
-     setState(() {
-       _selectedFilterIndex = index;
-     });
-  }
-
-  double _calculateCoverScale() {
-     if (_controller == null || !_controller!.value.isInitialized) return 1.0;
-     // Simple heuristic: If we want Square (1.0) and Camera is 3/4 (0.75), we need to scale up by 1/0.75 = 1.33
-     // If we want 9/16 (0.56) and Camera is 3/4 (0.75), we scale? No, 9/16 is taller.
-     // Actually, standard logic:
-     double screenRatio = _aspectRatios[_currentAspectRatioIndex];
-     double cameraRatio = _controller!.value.aspectRatio; 
-     // Note: cameraRatio might be inverted (4/3 vs 3/4) depending on orientation.
-     // Assuming Portrait: Camera is usually < 1.0 (e.g. 0.75).
-     
-     if (screenRatio == 1.0) {
-       return 1 / cameraRatio; // Scale width to match height?
-     }
-     return 1.0; // For now, let CameraPreview handle standard cases or precise math later.
-  }
-
-  // ... existing methods ...
-
-  Widget _buildBottomControls() {
-    return Positioned(
-      bottom: 40, left: 20, right: 20,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-           // Control Label
-           if (_isSplitMode) 
-            const Padding(padding: EdgeInsets.only(bottom: 10), child: Text("Split Mode", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))
-           else if (!_isCountingDown)
-            const Padding(padding: EdgeInsets.only(bottom: 10), child: Text("Align subject with ghost", style: TextStyle(color: Colors.white70))),
-
-           // Opacity Slider only in Overlay Mode
-           if (!_isSplitMode)
-             Row(
-                children: [
-                  const Icon(Icons.opacity, color: Colors.white, size: 20),
-                  Expanded(child: Slider(value: _opacity, min: 0.1, max: 0.9, activeColor: Colors.yellowAccent, inactiveColor: Colors.white24, onChanged: (val) => setState(() => _opacity = val))),
-                ],
-             ),
-             
-           const SizedBox(height: 10),
-           
-           Row(
-             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-             children: [
-               // Quick Review (Left)
-               GestureDetector(
-                 onTap: () {
-                    if (_lastCapturedPhoto != null) {
-                         Navigator.push(context, MaterialPageRoute(builder: (_) => Scaffold(
-                             backgroundColor: Colors.black,
-                             appBar: AppBar(backgroundColor: Colors.transparent, leading: const BackButton(color: Colors.white)),
-                             body: PhotoView(imageProvider: FileImage(File(_lastCapturedPhoto!.path))),
-                         )));
-                    }
-                 },
-                 child: Container(
-                   width: 48, height: 48,
-                   decoration: BoxDecoration(
-                     color: Colors.black45,
-                     shape: BoxShape.circle,
-                     border: Border.all(color: Colors.white, width: 2),
-                     image: _lastCapturedPhoto != null 
-                        ? DecorationImage(image: FileImage(File(_lastCapturedPhoto!.path)), fit: BoxFit.cover)
-                        : null,
-                   ),
-                   child: _lastCapturedPhoto == null ? const Icon(Icons.photo_library, color: Colors.white, size: 24) : null,
-                 ),
-               ),
-               
-               // Shutter Button (Center)
-               FloatingActionButton(
-                 onPressed: _takePicture,
-                 backgroundColor: Colors.white,
-                 child: const Icon(Icons.camera, color: Colors.black, size: 36),
-               ),
-               
-               // Switch Camera (Right)
-               IconButton(
-                 onPressed: _toggleCamera,
-                 icon: const Icon(Icons.cameraswitch, color: Colors.white, size: 30),
-               ),
-             ],
-           ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _controller?.dispose();
-    _sensorSubscription?.cancel();
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    final CameraController? cameraController = _controller;
-    if (cameraController == null || !cameraController.value.isInitialized) {
-      return;
-    }
-    if (state == AppLifecycleState.inactive) {
-      cameraController.dispose();
-    } else if (state == AppLifecycleState.resumed) {
-      _initCamera();
-    }
-  }
-
-  // --- Toggles ---
-  void _toggleGrid() => setState(() => _gridMode = (_gridMode + 1) % 3);
-  void _toggleTimer() => setState(() => _timerDuration = _timerDuration == 0 ? 3 : (_timerDuration == 3 ? 10 : 0));
-  
-  void _toggleSplit() {
-    setState(() {
-      _isSplitMode = !_isSplitMode;
-    });
-  }
-
-  void _toggleGhost() {
-    setState(() {
-      _isGhostMode = !_isGhostMode;
-    });
-  }
-
   void _toggleLeveler() {
-    setState(() {
-      _isLevelerActive = !_isLevelerActive;
-    });
+    setState(() => _isLevelerActive = !_isLevelerActive);
 
     if (_isLevelerActive) {
-      _sensorSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
-        // Calculate basic roll (tilt left/right)
-        // atan2(x, y) works for portrait mode to detect Z rotation relative to gravity
+      _sensorSubscription = accelerometerEventStream().listen((event) {
         if (!mounted) return;
         setState(() {
-          _deviceRoll = -math.atan2(event.x, event.y); 
+          _deviceRoll = -math.atan2(event.x, event.y);
         });
       });
     } else {
@@ -626,33 +827,56 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     }
   }
 
-  Future<void> _toggleFlash() async {
-    if (_controller == null) return;
-    FlashMode newMode;
-    switch (_flashMode) {
-      case FlashMode.auto: newMode = FlashMode.off; break;
-      case FlashMode.off: newMode = FlashMode.always; break;
-      default: newMode = FlashMode.auto;
-    }
-    try {
-      await _controller!.setFlashMode(newMode);
-      setState(() => _flashMode = newMode);
-    } catch (e) { debugPrint("Flash error: $e"); }
+  void _toggleTimer() {
+    setState(() {
+      _timerDuration = _timerDuration == 0 ? 3 : (_timerDuration == 3 ? 10 : 0);
+    });
   }
 
-  // --- Zoom Logic ---
+  void _toggleFlash() {
+    _cycleFlash();
+  }
+
+  void _cycleFlash() {
+    FlashMode newMode;
+    switch (_flashMode) {
+      case FlashMode.auto:
+        newMode = FlashMode.off;
+        break;
+      case FlashMode.off:
+        newMode = FlashMode.always;
+        break;
+      default:
+        newMode = FlashMode.auto;
+    }
+    _controller?.setFlashMode(newMode);
+    setState(() => _flashMode = newMode);
+  }
+
+  String _getFlashLabel() {
+    switch (_flashMode) {
+      case FlashMode.auto:
+        return 'Auto';
+      case FlashMode.off:
+        return 'Off';
+      case FlashMode.always:
+        return 'On';
+      default:
+        return 'Auto';
+    }
+  }
+
   void _handleScaleStart(ScaleStartDetails details) {
     _scaleFactorBase = _currentZoom;
   }
 
   Future<void> _handleScaleUpdate(ScaleUpdateDetails details) async {
-     double newZoom = _scaleFactorBase * details.scale;
-     newZoom = newZoom.clamp(_minZoom, _maxZoom); // Clamp
-     
-     if (newZoom != _currentZoom) {
-       setState(() => _currentZoom = newZoom);
-       await _controller?.setZoomLevel(newZoom);
-     }
+    double newZoom = _scaleFactorBase * details.scale;
+    newZoom = newZoom.clamp(_minZoom, _maxZoom);
+    if (newZoom != _currentZoom) {
+      setState(() => _currentZoom = newZoom);
+      await _controller?.setZoomLevel(newZoom);
+    }
   }
 
   Future<void> _takePicture() async {
@@ -672,174 +896,242 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     }
 
     try {
-      await SoundUtils.playShutterSound(); // Play Sound
+      await SoundUtils.playShutterSound();
       var image = await _controller!.takePicture();
-      
-      // Apply Face Filter if active
-      if (_isFaceFilterActive && _selectedFilterIndex > 0) {
-        if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Applying magic filter... ✨')));
-        }
-        
-        final filteredPath = await FaceFilterProcessor.applyFilterToImage(
-          image.path, 
-          _availableFilters[_selectedFilterIndex]
-        );
 
+      if (_isFaceFilterActive && _selectedFilterIndex > 0) {
+        final filteredPath = await FaceFilterProcessor.applyFilterToImage(
+          image.path,
+          _availableFilters[_selectedFilterIndex],
+        );
         if (filteredPath != null) {
           image = XFile(filteredPath);
         }
       }
 
       if (mounted) {
-        setState(() {
-          _lastCapturedPhoto = image;
-        });
-      }
-      
-      // Save to Gallery
-      try {
-        await Gal.putImage(image.path); // Requires gal package
-        if (mounted) {
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo saved to Gallery! 📸')));
-        }
-      } catch (e) {
-         if (mounted) {
-           // ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved to app but failed to save to gallery: $e')));
-        }
+        setState(() => _lastCapturedPhoto = image);
       }
 
+      try {
+        await Gal.putImage(image.path);
+      } catch (e) {
+        debugPrint("Gallery save error: $e");
+      }
     } catch (e) {
       debugPrint("Error taking picture: $e");
     }
   }
 
+  double _calculateCoverScale() {
+    if (_controller == null || !_controller!.value.isInitialized) return 1.0;
+    return 1.0;
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller?.dispose();
+    _sensorSubscription?.cancel();
+    _objectDetector?.close();
+    _imageLabeler?.close();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final cameraController = _controller;
+    if (cameraController == null || !cameraController.value.isInitialized)
+      return;
+    if (state == AppLifecycleState.inactive) {
+      cameraController.dispose();
+    } else if (state == AppLifecycleState.resumed) {
+      _initCamera();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    if (!_isInit || _controller == null) return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator(color: Colors.white)));
+    if (!_isInit || _controller == null) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator(color: Colors.white)),
+      );
+    }
 
-    // Layout: If SplitMode, Row/Column. Else Stack.
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Content
           _isSplitMode ? _buildSplitView() : _buildOverlayView(),
 
-          // Common Overlays
+          // AI Overlays
           if (_gridMode != 0) Positioned.fill(child: _buildGrid()),
           if (_isLevelerActive) Positioned.fill(child: _buildLeveler()),
-          
-          // Face Filters Overlay (AR Masks)
-          if (_isFaceFilterActive) 
-             Positioned.fill(
-                child: CustomPaint(
-                   painter: FacePainter(
-                      faces: _detectedFaces,
-                      // CameraController previewSize is usually Landscape (Width > Height) e.g. 1920x1080
-                      // ML Kit processing logic rotates it.
-                      // We need to pass the dimensions that match the coordinate system of the detected faces.
-                      imageSize: Platform.isAndroid 
-                         // Android rotation logic means we often swap these for portrait
-                         ? Size(_controller!.value.previewSize!.height, _controller!.value.previewSize!.width)
-                         : Size(_controller!.value.previewSize!.width, _controller!.value.previewSize!.height), 
-                      
-                      rotation: InputImageRotation.rotation90deg, 
-                      cameraLensDirection: _cameras[_selectedCameraIndex].lensDirection,
-                      filter: _availableFilters[_selectedFilterIndex], 
-                   ),
-                ),
-             ),
-
-          if (_isAiCoachActive && _detectedPose != null) Positioned.fill(child: _buildSkeleton()),
-          
-          if (_isAiCoachActive) _buildAiScore(),
-          
-          // UI Controls
-          _buildTopControls(),
-          
-          // Bottom Area: Specific controls depending on mode
           if (_isFaceFilterActive)
-             _buildFilterSelector()
-          else 
-             _buildBottomControls(), // Standard Photo Controls
-          
+            Positioned.fill(child: _buildFaceFilterOverlay()),
+          if (_aiCoachEnabled && _detectedPose != null)
+            Positioned.fill(child: _buildSkeleton()),
+          if (_objectDetectionEnabled)
+            Positioned.fill(child: _buildObjectLabels()),
+          if (_sceneRecognitionEnabled && _dominantScene != null)
+            Positioned.fill(child: _buildSceneLabel()),
+          if (_smartCompositionEnabled)
+            Positioned.fill(child: _buildSmartComposition()),
+
+          if (_aiCoachEnabled) _buildAiScore(),
+
+          // Gesture indicator
+          if (_handGestureEnabled && _lastGestures.isNotEmpty)
+            _buildGestureIndicator(),
+
+          // Top bar with settings button
+          _buildTopBar(),
+
+          // Bottom controls
+          _buildBottomControls(),
+
           if (_isCountingDown) _buildCountdown(),
         ],
       ),
     );
   }
 
-  Widget _buildFilterSelector() {
+  Widget _buildTopBar() {
     return Positioned(
-      bottom: 30, left: 0, right: 0,
+      top: 50,
+      left: 10,
+      right: 10,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white, size: 28),
+            onPressed: () => Navigator.pop(context),
+          ),
+          Row(
+            children: [
+              if (_timerDuration > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_timerDuration}s',
+                    style: const TextStyle(
+                      color: Colors.amber,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: Icon(Icons.settings, color: Colors.white, size: 28),
+                onPressed: _showSettingsPanel,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomControls() {
+    return Positioned(
+      bottom: 40,
+      left: 20,
+      right: 20,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Shutter Button (Small version for filter mode)
-          GestureDetector(
-             onTap: _takePicture,
-             child: Container(
-               width: 70, height: 70,
-               decoration: BoxDecoration(
-                 shape: BoxShape.circle,
-                 border: Border.all(color: Colors.white, width: 4),
-                 color: Colors.white24
-               ),
-             ),
-          ),
-          const SizedBox(height: 20),
-          
-          // Filter Carousel
-          SizedBox(
-            height: 80,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _availableFilters.length,
-              itemBuilder: (context, index) {
-                final filter = _availableFilters[index];
-                final isSelected = index == _selectedFilterIndex;
-                
-                return GestureDetector(
-                  onTap: () => _selectFilter(index),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 15),
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 50, height: 50,
-                          padding: const EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                               color: isSelected ? Colors.yellowAccent : Colors.white54, 
-                               width: isSelected ? 3 : 2
-                            ),
-                          ),
-                          child: CircleAvatar(
-                             backgroundColor: Colors.black54,
-                             backgroundImage: NetworkImage(filter.iconUrl),
-                          ),
+          if (_lastCapturedPhoto != null)
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(
+                      backgroundColor: Colors.black,
+                      appBar: AppBar(
+                        backgroundColor: Colors.transparent,
+                        leading: const BackButton(color: Colors.white),
+                      ),
+                      body: PhotoView(
+                        imageProvider: FileImage(
+                          File(_lastCapturedPhoto!.path),
                         ),
-                        const SizedBox(height: 4),
-                        if (isSelected) 
-                           Text(filter.name, style: const TextStyle(color: Colors.yellowAccent, fontSize: 10, fontWeight: FontWeight.bold))
-                      ],
+                      ),
                     ),
                   ),
                 );
               },
-            ),
+              child: Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  image: DecorationImage(
+                    image: FileImage(File(_lastCapturedPhoto!.path)),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            )
+          else
+            const SizedBox(width: 50),
+
+          const SizedBox(height: 20),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                onPressed: _toggleCamera,
+                icon: const Icon(
+                  Icons.cameraswitch,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+              GestureDetector(
+                onTap: _takePicture,
+                child: Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 4),
+                  ),
+                  child: Container(
+                    margin: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _gridMode = (_gridMode + 1) % 3;
+                  });
+                },
+                icon: Icon(
+                  _gridMode == 0 ? Icons.grid_off : Icons.grid_on,
+                  color: Colors.white,
+                  size: 30,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          // Close Filter Mode
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
-            onPressed: _toggleFaceFilterMode,
-          )
         ],
       ),
     );
@@ -852,52 +1144,51 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
       child: Center(
         child: AspectRatio(
           aspectRatio: _aspectRatios[_currentAspectRatioIndex],
-            child: ClipRect(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // Camera Preview (Scaled to Cover)
-                  Transform.scale(
-                    scale: _calculateCoverScale(),
-                    child: Center(
-                       child: ColorFiltered(
-                         colorFilter: _filters[_filterIndex] ?? const
-                         ColorFilter.mode(Colors.transparent, BlendMode.dst),
-                         child: CameraPreview(_controller!),
-                       ),
+          child: ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Transform.scale(
+                  scale: _calculateCoverScale(),
+                  child: Center(
+                    child: ColorFiltered(
+                      colorFilter:
+                          _filters[_filterIndex] ??
+                          const ColorFilter.mode(
+                            Colors.transparent,
+                            BlendMode.dst,
+                          ),
+                      child: CameraPreview(_controller!),
                     ),
                   ),
-            if (widget.photo != null)
-              Opacity(
-                opacity: _opacity,
-                child: Image.network(
-                    widget.photo!.url, 
-                    fit: BoxFit.contain, // Changed from cover to contain to avoid zooming/cropping
-                    color: _isGhostMode ? Colors.white : null,
-                    colorBlendMode: _isGhostMode ? BlendMode.difference : null,
                 ),
-              ),
-          ],
+                if (widget.photo != null)
+                  Opacity(
+                    opacity: _isGhostMode ? 0.5 : 0,
+                    child: Image.network(
+                      widget.photo!.url,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
       ),
     );
   }
-  
+
   Widget _buildSplitView() {
     return Column(
       children: [
         Expanded(
-          child: widget.photo != null 
+          child: widget.photo != null
               ? Image.network(
-                  widget.photo!.url, 
-                  fit: BoxFit.contain, // Changed from cover to contain
+                  widget.photo!.url,
+                  fit: BoxFit.contain,
                   width: double.infinity,
-                  color: _isGhostMode ? Colors.white : null,
-                  colorBlendMode: _isGhostMode ? BlendMode.difference : null,
-              )
-              : Container(color: Colors.black, child: const Center(child: Text("No Reference Photo", style: TextStyle(color: Colors.white)))),
+                )
+              : Container(color: Colors.black),
         ),
         Expanded(
           child: GestureDetector(
@@ -910,99 +1201,63 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     );
   }
 
-  Widget _buildCountdown() {
-      return Center(
-        child: Text(
-          "$_countdownValue",
-          style: const TextStyle(fontSize: 120, color: Colors.white, fontWeight: FontWeight.bold, shadows: [Shadow(blurRadius: 10, color: Colors.black)]),
-        ),
-      );
+  Widget _buildFaceFilterOverlay() {
+    return CustomPaint(
+      painter: FacePainter(
+        faces: _detectedFaces,
+        imageSize: Platform.isAndroid
+            ? Size(
+                _controller!.value.previewSize!.height,
+                _controller!.value.previewSize!.width,
+              )
+            : Size(
+                _controller!.value.previewSize!.width,
+                _controller!.value.previewSize!.height,
+              ),
+        rotation: InputImageRotation.rotation90deg,
+        cameraLensDirection: _cameras[_selectedCameraIndex].lensDirection,
+        filter: _availableFilters[_selectedFilterIndex],
+      ),
+    );
   }
 
-  Widget _buildTopControls() {
+  Widget _buildObjectLabels() {
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: ObjectLabelPainter(
+          objects: _detectedObjects,
+          imageSize: Size(
+            _controller!.value.previewSize!.width,
+            _controller!.value.previewSize!.height,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSceneLabel() {
     return Positioned(
-      top: 50, left: 10, right: 10,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: Colors.black45, borderRadius: BorderRadius.circular(30)),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
+      top: 100,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black54,
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
-              
-              // AI Coach (Moved to front for visibility)
-              IconButton(
-                icon: Icon(Icons.accessibility_new, color: _isAiCoachActive ? Colors.greenAccent : Colors.white),
-                onPressed: _toggleAiCoach,
-              ),
-               if (_isAiCoachActive)
-                 IconButton(
-                  icon: Icon(Icons.hdr_auto, color: _isAutoShutterEnabled ? Colors.greenAccent : Colors.white54),
-                  onPressed: _toggleAutoShutter,
+              const Icon(Icons.auto_awesome, color: Colors.amber, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                _dominantScene ?? '',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
-
-              IconButton(icon: Icon(_getFlashIcon(), color: Colors.white), onPressed: _toggleFlash),
-              
-              // Resolution Toggle
-              IconButton(
-                icon: Icon(
-                  _currentResolutionPreset == ResolutionPreset.max ? Icons.high_quality : Icons.hd, 
-                  color: _currentResolutionPreset == ResolutionPreset.max ? Colors.yellowAccent : Colors.white54
-                ), 
-                onPressed: _toggleResolution
-              ),
-
-              // Aspect Ratio Toggle
-              IconButton(
-                onPressed: _toggleAspectRatio,
-                icon: Text(
-                  _aspectRatioLabels[_currentAspectRatioIndex], 
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)
-                ),
-              ),
-
-              // Filter Toggle
-                IconButton(
-                onPressed: _toggleFilter,
-                icon: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.palette, color: Colors.white, size: 20),
-                    Text(_filterLabels[_filterIndex], style: const TextStyle(color: Colors.white, fontSize: 10)),
-                  ],
-                ),
-              ),
-
-              // Face Filter Toggle (AR Masks)
-              IconButton(
-                onPressed: _toggleFaceFilterMode,
-                icon: Icon(
-                   Icons.face_retouching_natural, 
-                   color: _isFaceFilterActive ? Colors.yellowAccent : Colors.white
-                ),
-              ),
-
-              IconButton(icon: Icon(_gridMode == 0 ? Icons.grid_off : Icons.grid_on, color: _gridMode == 0 ? Colors.white54 : Colors.yellowAccent), onPressed: _toggleGrid),
-              IconButton(icon: Icon(_timerDuration == 0 ? Icons.timer_off : (_timerDuration == 3 ? Icons.timer_3 : Icons.timer_10), color: _timerDuration == 0 ? Colors.white54 : Colors.yellowAccent), onPressed: _toggleTimer),
-              
-              // New Toggles
-              IconButton(
-                icon: Icon(Icons.blur_on, color: _isPortraitMode ? Colors.yellowAccent : Colors.white54),
-                onPressed: _togglePortraitMode,
-              ),
-              IconButton(
-                icon: Icon(Icons.screen_rotation, color: _isLevelerActive ? Colors.yellowAccent : Colors.white54),
-                onPressed: _toggleLeveler,
-              ),
-               IconButton(
-                icon: Icon(Icons.vertical_split, color: _isSplitMode ? Colors.yellowAccent : Colors.white54),
-                onPressed: _toggleSplit,
-              ),
-               IconButton(
-                icon: Icon(Icons.contrast, color: _isGhostMode ? Colors.yellowAccent : Colors.white54),
-                onPressed: _toggleGhost,
               ),
             ],
           ),
@@ -1011,23 +1266,26 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
     );
   }
 
-
-
-  IconData _getFlashIcon() {
-     switch (_flashMode) {
-      case FlashMode.off: return Icons.flash_off;
-      case FlashMode.auto: return Icons.flash_auto;
-      case FlashMode.always: return Icons.flash_on;
-      default: return Icons.flash_auto;
-     }
+  Widget _buildSmartComposition() {
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: SmartCompositionPainter(
+          faces: _detectedFaces,
+          imageSize: Size(
+            _controller!.value.previewSize!.width,
+            _controller!.value.previewSize!.height,
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildSkeleton() {
     return IgnorePointer(
       child: CustomPaint(
         painter: SkeletonPainter(
-           pose: _detectedPose, 
-           referencePose: _isGhostMode ? _referencePose : null // Only show ref skeleton in Ghost Mode for clarity? Or always?
+          pose: _detectedPose,
+          referencePose: _isGhostMode ? _referencePose : null,
         ),
         child: Container(),
       ),
@@ -1036,8 +1294,8 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
 
   Widget _buildAiScore() {
     return Positioned(
-      top: 100, 
-      left: 20, 
+      top: 100,
+      left: 20,
       right: 20,
       child: Column(
         children: [
@@ -1047,146 +1305,212 @@ class _MagicCameraScreenState extends State<MagicCameraScreen> with WidgetsBindi
               color: Colors.black54,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: _matchScore > 80 ? Colors.greenAccent : (_matchScore > 50 ? Colors.yellowAccent : Colors.redAccent),
-                width: 2
+                color: _matchScore > 80
+                    ? Colors.greenAccent
+                    : Colors.yellowAccent,
+                width: 2,
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.auto_awesome, color: _matchScore > 80 ? Colors.greenAccent : Colors.yellowAccent, size: 20),
+                Icon(
+                  Icons.auto_awesome,
+                  color: _matchScore > 80
+                      ? Colors.greenAccent
+                      : Colors.yellowAccent,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text(
-                  "Match: ${_matchScore.toInt()}%", 
-                  style: TextStyle(
-                    color: _matchScore > 80 ? Colors.greenAccent : Colors.white, 
+                  "Match: ${_matchScore.toInt()}%",
+                  style: const TextStyle(
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 18,
+                    fontSize: 16,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
           if (_matchScore < 90 && _detectedPose != null)
-            Material(
-              color: Colors.transparent,
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
               child: Text(
                 _feedbackText,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                  shadows: [Shadow(color: Colors.black)],
                 ),
-                textAlign: TextAlign.center,
               ),
             ),
-           if (_isAutoShutterEnabled && _matchScore > 85 && !_isAutoTriggering)
-              const Padding(
-                 padding: EdgeInsets.only(top: 8),
-                 child: Text("Hold for Photo...", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
-              ),
         ],
       ),
     );
   }
 
-  Widget _buildGrid() {
-    return IgnorePointer(child: CustomPaint(painter: GridPainter(mode: _gridMode), child: Container()));
+  Widget _buildGestureIndicator() {
+    String gestureText = '';
+    IconData gestureIcon = Icons.pan_tool;
+
+    if (_lastGestures.contains(HandGesture.raisedHand)) {
+      gestureText = 'Raise Hand - Capturing!';
+      gestureIcon = Icons.back_hand;
+    } else if (_lastGestures.contains(HandGesture.peace)) {
+      gestureText = 'Peace - Camera Switch';
+      gestureIcon = Icons.vibration;
+    } else if (_lastGestures.contains(HandGesture.thumbsUp)) {
+      gestureText = 'Thumbs Up - Flash Toggled';
+      gestureIcon = Icons.thumb_up;
+    }
+
+    return Positioned(
+      top: 150,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: AnimatedOpacity(
+          opacity: 1.0,
+          duration: const Duration(seconds: 1),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.8),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(gestureIcon, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  gestureText,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
-  
+
+  Widget _buildGrid() {
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: GridPainter(mode: _gridMode),
+        child: Container(),
+      ),
+    );
+  }
+
   Widget _buildLeveler() {
-    return IgnorePointer(child: CustomPaint(painter: LevelerPainter(angle: _deviceRoll), child: Container()));
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: LevelerPainter(angle: _deviceRoll),
+        child: Container(),
+      ),
+    );
+  }
+
+  Widget _buildCountdown() {
+    return Center(
+      child: Text(
+        "$_countdownValue",
+        style: const TextStyle(
+          fontSize: 120,
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          shadows: [Shadow(blurRadius: 10, color: Colors.black)],
+        ),
+      ),
+    );
   }
 }
 
+// Custom Painters
 class SkeletonPainter extends CustomPainter {
   final Pose? pose;
   final Pose? referencePose;
-  
   SkeletonPainter({this.pose, this.referencePose});
 
   @override
   void paint(Canvas canvas, Size size) {
-    
-    // Draw Reference Pose (Blue)
     if (referencePose != null) {
-      final paintRef = Paint()..color = Colors.blueAccent.withOpacity(0.6)..strokeWidth = 3;
-       _drawPose(canvas, referencePose!, paintRef);
+      final paintRef = Paint()
+        ..color = Colors.blueAccent.withOpacity(0.6)
+        ..strokeWidth = 3;
+      _drawPose(canvas, referencePose!, paintRef);
     }
-
-    // Draw User Pose (Green)
     if (pose != null) {
-       final paintUser = Paint()..color = Colors.greenAccent..strokeWidth = 3;
-       _drawPose(canvas, pose!, paintUser);
+      final paintUser = Paint()
+        ..color = Colors.greenAccent
+        ..strokeWidth = 3;
+      _drawPose(canvas, pose!, paintUser);
     }
   }
 
   void _drawPose(Canvas canvas, Pose p, Paint paint) {
-    final landmarks = p.landmarks;
-    
     void drawLine(PoseLandmarkType t1, PoseLandmarkType t2) {
-      final l1 = landmarks[t1];
-      final l2 = landmarks[t2];
-      if (l1 != null && l2 != null && l1.likelihood > 0.5 && l2.likelihood > 0.5) {
-         canvas.drawLine(Offset(l1.x, l1.y), Offset(l2.x, l2.y), paint);
+      final l1 = p.landmarks[t1];
+      final l2 = p.landmarks[t2];
+      if (l1 != null &&
+          l2 != null &&
+          l1.likelihood > 0.5 &&
+          l2.likelihood > 0.5) {
+        canvas.drawLine(Offset(l1.x, l1.y), Offset(l2.x, l2.y), paint);
       }
     }
-    
-    // Arms
+
     drawLine(PoseLandmarkType.leftShoulder, PoseLandmarkType.leftElbow);
     drawLine(PoseLandmarkType.leftElbow, PoseLandmarkType.leftWrist);
     drawLine(PoseLandmarkType.rightShoulder, PoseLandmarkType.rightElbow);
-    drawLine(PoseLandmarkType.rightElbow, PoseLandmarkType.rightWrist);
-    
-    // Shoulders
+    drawLine(PoseLandmarkType.rightShoulder, PoseLandmarkType.rightWrist);
     drawLine(PoseLandmarkType.leftShoulder, PoseLandmarkType.rightShoulder);
-    
-    // Body
     drawLine(PoseLandmarkType.leftShoulder, PoseLandmarkType.leftHip);
     drawLine(PoseLandmarkType.rightShoulder, PoseLandmarkType.rightHip);
     drawLine(PoseLandmarkType.leftHip, PoseLandmarkType.rightHip);
-    
-    // Legs
     drawLine(PoseLandmarkType.leftHip, PoseLandmarkType.leftKnee);
     drawLine(PoseLandmarkType.leftKnee, PoseLandmarkType.leftAnkle);
     drawLine(PoseLandmarkType.rightHip, PoseLandmarkType.rightKnee);
     drawLine(PoseLandmarkType.rightKnee, PoseLandmarkType.rightAnkle);
-    
-    // Face (Optional but helpful)
-    drawLine(PoseLandmarkType.leftEar, PoseLandmarkType.leftEye);
-    drawLine(PoseLandmarkType.rightEar, PoseLandmarkType.rightEye);
-    drawLine(PoseLandmarkType.leftEye, PoseLandmarkType.nose);
-    drawLine(PoseLandmarkType.rightEye, PoseLandmarkType.nose);
   }
 
   @override
-  bool shouldRepaint(covariant SkeletonPainter oldDelegate) => true; 
+  bool shouldRepaint(covariant SkeletonPainter oldDelegate) => true;
 }
 
-
 class GridPainter extends CustomPainter {
-  final int mode; 
+  final int mode;
   GridPainter({required this.mode});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (mode == 0) return;
-    final paint = Paint()..color = Colors.white.withOpacity(0.4)..strokeWidth = 1..style = PaintingStyle.stroke;
-    
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.4)
+      ..strokeWidth = 1;
     double stepW = size.width / 3;
     double stepH = size.height / 3;
-    if (mode == 2) { 
-         // Golden ratio approx
-         stepW = size.width * 0.382;
-         stepH = size.height * 0.382;
+    if (mode == 2) {
+      stepW = size.width * 0.382;
+      stepH = size.height * 0.382;
     }
-
     canvas.drawLine(Offset(stepW, 0), Offset(stepW, size.height), paint);
-    canvas.drawLine(Offset(size.width - stepW, 0), Offset(size.width - stepW, size.height), paint);
+    canvas.drawLine(
+      Offset(size.width - stepW, 0),
+      Offset(size.width - stepW, size.height),
+      paint,
+    );
     canvas.drawLine(Offset(0, stepH), Offset(size.width, stepH), paint);
-    canvas.drawLine(Offset(0, size.height - stepH), Offset(size.width, size.height - stepH), paint);
+    canvas.drawLine(
+      Offset(0, size.height - stepH),
+      Offset(size.width, size.height - stepH),
+      paint,
+    );
   }
 
   @override
@@ -1200,28 +1524,140 @@ class LevelerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final len = size.width * 0.4; // Line length
-    final isLevel = angle.abs() < 0.05; // ~3 degrees tolerance
+    final isLevel = angle.abs() < 0.05;
     final color = isLevel ? Colors.greenAccent : Colors.redAccent;
-    final paint = Paint()..color = color..strokeWidth = 3..style = PaintingStyle.stroke..strokeCap = StrokeCap.round;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
 
     canvas.save();
     canvas.translate(center.dx, center.dy);
-    canvas.rotate(angle); 
-    
-    // Draw crosshair center
+    canvas.rotate(angle);
     canvas.drawCircle(Offset.zero, 5, paint..style = PaintingStyle.fill);
-    
-    // Draw horizon line
-    canvas.drawLine(Offset(-len, 0), Offset(len, 0), paint);
-    
-    // Draw guide ticks
-    final tickPaint = Paint()..color = Colors.white.withOpacity(0.5)..strokeWidth = 1;
-    canvas.drawLine(Offset(-len, -10), Offset(-len, 10), tickPaint);
-    canvas.drawLine(Offset(len, -10), Offset(len, 10), tickPaint);
-    
+    canvas.drawLine(
+      Offset(-size.width * 0.4, 0),
+      Offset(size.width * 0.4, 0),
+      paint,
+    );
     canvas.restore();
   }
+
   @override
-  bool shouldRepaint(covariant LevelerPainter oldDelegate) => oldDelegate.angle != angle;
+  bool shouldRepaint(covariant LevelerPainter oldDelegate) =>
+      oldDelegate.angle != angle;
+}
+
+class ObjectLabelPainter extends CustomPainter {
+  final List<DetectedObject> objects;
+  final Size imageSize;
+  ObjectLabelPainter({required this.objects, required this.imageSize});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final scaleX = size.width / imageSize.width;
+    final scaleY = size.height / imageSize.height;
+
+    for (final obj in objects) {
+      final rect = obj.boundingBox;
+      final left = rect.left * scaleX;
+      final top = rect.top * scaleY;
+      final width = rect.width * scaleX;
+      final height = rect.height * scaleY;
+
+      final paint = Paint()
+        ..color = Colors.amber
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawRect(Rect.fromLTWH(left, top, width, height), paint);
+
+      for (final label in obj.labels) {
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: '${label.text} ${(label.confidence * 100).toInt()}%',
+            style: const TextStyle(
+              color: Colors.amber,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        );
+        textPainter.layout();
+
+        final bgPaint = Paint()..color = Colors.black54;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(left, top - 20, textPainter.width + 10, 20),
+            const Radius.circular(4),
+          ),
+          bgPaint,
+        );
+        textPainter.paint(canvas, Offset(left + 5, top - 16));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant ObjectLabelPainter oldDelegate) => true;
+}
+
+class SmartCompositionPainter extends CustomPainter {
+  final List<Face> faces;
+  final Size imageSize;
+  SmartCompositionPainter({required this.faces, required this.imageSize});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (faces.isEmpty) return;
+
+    double centerX = 0, centerY = 0;
+    for (final face in faces) {
+      centerX += face.boundingBox.center.dx;
+      centerY += face.boundingBox.center.dy;
+    }
+    centerX /= faces.length;
+    centerY /= faces.length;
+
+    final scaleX = size.width / imageSize.width;
+    final scaleY = size.height / imageSize.height;
+
+    final targetX = size.width * 0.5;
+    final targetY = size.height * 0.38;
+
+    final paint = Paint()
+      ..color = Colors.greenAccent.withOpacity(0.5)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawLine(
+      Offset(centerX * scaleX, centerY * scaleY),
+      Offset(targetX, targetY),
+      paint,
+    );
+    canvas.drawCircle(
+      Offset(targetX, targetY),
+      5,
+      paint..style = PaintingStyle.fill,
+    );
+
+    final guidePaint = Paint()
+      ..color = Colors.greenAccent.withOpacity(0.3)
+      ..strokeWidth = 1;
+
+    canvas.drawLine(
+      Offset(size.width * 0.5, 0),
+      Offset(size.width * 0.5, size.height),
+      guidePaint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height * 0.38),
+      Offset(size.width, size.height * 0.38),
+      guidePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant SmartCompositionPainter oldDelegate) => true;
 }
