@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/models/photo_model.dart';
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:sensors_plus/sensors_plus.dart';
 import 'package:gal/gal.dart';
 import 'dart:io';
@@ -13,7 +14,6 @@ import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
 import '../../../core/services/pose_detection_service.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import '../../../core/services/face_detection_service.dart';
-import '../../../core/services/filter_asset_service.dart';
 import '../models/face_filter_model.dart';
 import '../widgets/face_painter.dart';
 import '../../../core/services/tts_service.dart';
@@ -26,6 +26,7 @@ import '../../../core/utils/gesture_detector.dart';
 import '../../../utils/image_downloader.dart';
 import '../../../core/services/face_filter_service.dart';
 import '../../../core/utils/face_filter_processor.dart';
+import 'dart:ui' as ui;
 
 class MagicCameraScreen extends StatefulWidget {
   final PhotoModel? photo;
@@ -49,6 +50,63 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
   bool _objectDetectionEnabled = false;
   bool _sceneRecognitionEnabled = false;
   bool _smartCompositionEnabled = false;
+  bool _backgroundReplacementEnabled = false;
+  bool _styleTransferEnabled = false;
+
+  // Background Replacement
+  int _selectedBackgroundIndex = 0;
+  final List<String> _backgroundTemplates = [
+    '', // Original
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800', // Mountains
+    'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800', // Beach
+    'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800', // Stars
+    'https://images.unsplash.com/photo-1493246507139-91e8fad9978e?w=800', // Forest
+    'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800', // City
+    'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800', // Valley
+  ];
+  Uint8List? _backgroundImageData;
+  Uint8List? _segmentationMask;
+
+  // Style Transfer
+  int _selectedStyleIndex = 0;
+  final List<StyleTransfer> _styleTransfers = [
+    StyleTransfer(name: 'Original', filter: null, description: 'No filter'),
+    StyleTransfer(
+      name: 'Van Gogh',
+      filter: _vanGoghFilter(),
+      description: 'Starry night style',
+    ),
+    StyleTransfer(
+      name: 'Picasso',
+      filter: _picassoFilter(),
+      description: 'Cubist style',
+    ),
+    StyleTransfer(
+      name: 'Monet',
+      filter: _monetFilter(),
+      description: 'Impressionist',
+    ),
+    StyleTransfer(
+      name: 'Pop Art',
+      filter: _popArtFilter(),
+      description: 'Bold colors',
+    ),
+    StyleTransfer(
+      name: 'Noir',
+      filter: _noirFilter(),
+      description: 'Black & white dramatic',
+    ),
+    StyleTransfer(
+      name: 'Neon',
+      filter: _neonFilter(),
+      description: 'Glowing colors',
+    ),
+    StyleTransfer(
+      name: 'Dream',
+      filter: _dreamFilter(),
+      description: 'Soft dreamy',
+    ),
+  ];
 
   // Pro Settings
   int _gridMode = 0;
@@ -87,6 +145,11 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
   Pose? _referencePose;
   String? _dominantScene;
   String? _lastDetectedGesture;
+
+  // Smile tracking
+  int _smilingFaces = 0;
+  int _totalFaces = 0;
+  bool _allSmiling = false;
 
   // Face Filters
   bool _isFaceFilterActive = false;
@@ -191,12 +254,172 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
   ];
   final List<String> _filterLabels = ["Norm", "B&W", "Sepia", "Cold"];
 
+  static ColorFilter? _vanGoghFilter() => const ColorFilter.matrix([
+    0.4,
+    0.4,
+    0.2,
+    0,
+    0,
+    0.3,
+    0.5,
+    0.3,
+    0,
+    0,
+    0.2,
+    0.3,
+    0.4,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
+
+  static ColorFilter? _picassoFilter() => const ColorFilter.matrix([
+    0.8,
+    0.2,
+    0.1,
+    0,
+    20,
+    0.1,
+    0.7,
+    0.2,
+    0,
+    10,
+    0.2,
+    0.1,
+    0.8,
+    0,
+    30,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
+
+  static ColorFilter? _monetFilter() => const ColorFilter.matrix([
+    1.2,
+    0.1,
+    0.1,
+    0,
+    10,
+    0.1,
+    1.1,
+    0.1,
+    0,
+    5,
+    0.1,
+    0.1,
+    0.8,
+    0,
+    20,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
+
+  static ColorFilter? _popArtFilter() => const ColorFilter.matrix([
+    1.5,
+    0,
+    0,
+    0,
+    -50,
+    0,
+    1.5,
+    0,
+    0,
+    -50,
+    0,
+    0,
+    1.5,
+    0,
+    -50,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
+
+  static ColorFilter? _noirFilter() => const ColorFilter.matrix([
+    0.5,
+    0.5,
+    0.5,
+    0,
+    0,
+    0.3,
+    0.3,
+    0.3,
+    0,
+    0,
+    0.1,
+    0.1,
+    0.1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
+
+  static ColorFilter? _neonFilter() => const ColorFilter.matrix([
+    1.0,
+    0.2,
+    0.8,
+    0,
+    30,
+    0.2,
+    0.8,
+    0.2,
+    0,
+    30,
+    0.8,
+    0.2,
+    1.0,
+    0,
+    30,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
+
+  static ColorFilter? _dreamFilter() => const ColorFilter.matrix([
+    1.1,
+    0.1,
+    0.1,
+    0,
+    15,
+    0.1,
+    1.0,
+    0.1,
+    0,
+    15,
+    0.1,
+    0.1,
+    1.2,
+    0,
+    20,
+    0,
+    0,
+    0,
+    0.9,
+    0,
+  ]);
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Initialize ML services with correct API
     _objectDetector = ObjectDetector(
       options: ObjectDetectorOptions(
         mode: DetectionMode.single,
@@ -235,6 +458,31 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
       }
     } catch (e) {
       debugPrint("Error loading reference pose: $e");
+    }
+  }
+
+  Future<void> _loadBackgroundImage(int index) async {
+    if (index == 0) {
+      setState(() => _backgroundImageData = null);
+      return;
+    }
+
+    try {
+      final url = _backgroundTemplates[index];
+      if (url.isEmpty) return;
+
+      final response = await HttpClient().getUrl(Uri.parse(url));
+      final httpResponse = await response.close();
+      final bytes = await httpResponse.fold<List<int>>(
+        [],
+        (p, e) => p..addAll(e),
+      );
+
+      if (mounted) {
+        setState(() => _backgroundImageData = Uint8List.fromList(bytes));
+      }
+    } catch (e) {
+      debugPrint("Error loading background: $e");
     }
   }
 
@@ -285,7 +533,10 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
         _isFaceFilterActive ||
         _handGestureEnabled ||
         _emotionCaptureEnabled ||
-        _objectDetectionEnabled;
+        _objectDetectionEnabled ||
+        _sceneRecognitionEnabled ||
+        _backgroundReplacementEnabled ||
+        _styleTransferEnabled;
 
     if (shouldStream && !_controller!.value.isStreamingImages) {
       try {
@@ -305,7 +556,9 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
         !_handGestureEnabled &&
         !_emotionCaptureEnabled &&
         !_objectDetectionEnabled &&
-        !_sceneRecognitionEnabled)
+        !_sceneRecognitionEnabled &&
+        !_backgroundReplacementEnabled &&
+        !_styleTransferEnabled)
       return;
 
     _isProcessingFrame = true;
@@ -321,59 +574,85 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
       }
 
       // Face Detection & Emotion
-      if (_isFaceFilterActive || _emotionCaptureEnabled) {
+      if (_isFaceFilterActive ||
+          _emotionCaptureEnabled ||
+          _backgroundReplacementEnabled) {
         final faces = await _faceService.processImage(inputImage);
         if (mounted) {
           setState(() => _detectedFaces = faces);
         }
 
+        // Emotion Detection - Track smiling faces
         if (_emotionCaptureEnabled) {
+          int smilingCount = 0;
+          int totalFaces = faces.length;
+
           for (final face in faces) {
             if (face.smilingProbability != null &&
-                face.smilingProbability! > 0.8) {
-              if (!_isCountingDown &&
-                  !_controller!.value.isTakingPicture &&
-                  _isAutoShutterEnabled) {
-                _takePicture();
-                _ttsService.speak("Nice smile!");
-              }
+                face.smilingProbability! > 0.7) {
+              smilingCount++;
             }
+          }
+
+          final allSmiling = totalFaces > 0 && smilingCount == totalFaces;
+
+          if (mounted) {
+            setState(() {
+              _smilingFaces = smilingCount;
+              _totalFaces = totalFaces;
+              _allSmiling = allSmiling;
+            });
+          }
+
+          // Auto-capture when ALL faces are smiling
+          if (allSmiling &&
+              !_isCountingDown &&
+              !_controller!.value.isTakingPicture &&
+              _isAutoShutterEnabled) {
+            _ttsService.speak("Everyone smiling!");
+            _takePicture();
           }
         }
       }
 
-      // Hand Gesture Detection
-      if (_handGestureEnabled) {
-        final gestures = await _gestureService.detectGestures(inputImage);
-        if (gestures.isNotEmpty && mounted) {
-          final now = DateTime.now();
-          if (_lastGestureTime == null ||
-              now.difference(_lastGestureTime!) > const Duration(seconds: 2)) {
-            _lastGestures = gestures;
-            _lastGestureTime = now;
+      // Hand Gesture Detection using Pose
+      if (_handGestureEnabled && _aiCoachEnabled) {
+        final poses = await _poseService.processImage(inputImage);
+        if (poses.isNotEmpty) {
+          final gestures = SimpleHandGestureDetector.detectFromPose(
+            poses.first,
+          );
+          if (gestures.isNotEmpty && mounted) {
+            final now = DateTime.now();
+            if (_lastGestureTime == null ||
+                now.difference(_lastGestureTime!) >
+                    const Duration(seconds: 2)) {
+              _lastGestures = gestures;
+              _lastGestureTime = now;
 
-            for (final gesture in gestures) {
-              if (gesture == HandGesture.raisedHand &&
-                  !_controller!.value.isTakingPicture) {
-                _takePicture();
-                _ttsService.speak("Captured!");
-                break;
-              } else if (gesture == HandGesture.peace) {
-                _toggleCamera();
-                _ttsService.speak("Camera switched");
-                break;
-              } else if (gesture == HandGesture.thumbsUp) {
-                _toggleFlash();
-                _ttsService.speak("Flash toggled");
-                break;
-              } else if (gesture == HandGesture.openPalm) {
-                _toggleTimer();
-                _ttsService.speak(
-                  _timerDuration > 0
-                      ? "Timer: ${_timerDuration}s"
-                      : "Timer off",
-                );
-                break;
+              for (final gesture in gestures) {
+                if (gesture == HandGesture.raisedHand &&
+                    !_controller!.value.isTakingPicture) {
+                  _takePicture();
+                  _ttsService.speak("Captured!");
+                  break;
+                } else if (gesture == HandGesture.peace) {
+                  _toggleCamera();
+                  _ttsService.speak("Camera switched");
+                  break;
+                } else if (gesture == HandGesture.thumbsUp) {
+                  _cycleFlash();
+                  _ttsService.speak("Flash toggled");
+                  break;
+                } else if (gesture == HandGesture.openPalm) {
+                  _toggleTimer();
+                  _ttsService.speak(
+                    _timerDuration > 0
+                        ? "Timer: ${_timerDuration}s"
+                        : "Timer off",
+                  );
+                  break;
+                }
               }
             }
           }
@@ -381,7 +660,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
       }
 
       // Object Detection
-      if (_objectDetectionEnabled && _objectDetector != null) {
+      if (_objectDetectionEnabled) {
         final objects = await _objectDetector!.processImage(inputImage);
         if (mounted) {
           setState(() => _detectedObjects = objects);
@@ -389,7 +668,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
       }
 
       // Scene Recognition
-      if (_sceneRecognitionEnabled && _imageLabeler != null) {
+      if (_sceneRecognitionEnabled) {
         final labels = await _imageLabeler!.processImage(inputImage);
         if (labels.isNotEmpty && mounted) {
           setState(() {
@@ -463,9 +742,9 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
 
   Widget _buildSettingsPanel() {
     return DraggableScrollableSheet(
-      initialChildSize: 0.6,
+      initialChildSize: 0.7,
       minChildSize: 0.3,
-      maxChildSize: 0.9,
+      maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
         return SingleChildScrollView(
@@ -487,7 +766,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'Camera Settings',
+                  'AI Camera Settings',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -496,17 +775,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                 ),
                 const SizedBox(height: 20),
 
-                _buildSettingsSection('AI Features', [
-                  _buildSwitchTile(
-                    'Hand Gesture Control',
-                    'Raise hand to capture, peace to switch camera',
-                    Icons.pan_tool,
-                    _handGestureEnabled,
-                    (v) {
-                      setState(() => _handGestureEnabled = v);
-                      _updateImageStream();
-                    },
-                  ),
+                _buildSettingsSection('Smart Capture', [
                   _buildSwitchTile(
                     'Emotion Capture',
                     'Auto-capture when everyone smiles',
@@ -516,6 +785,22 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                       setState(() {
                         _emotionCaptureEnabled = v;
                         if (v) _isAutoShutterEnabled = true;
+                      });
+                      _updateImageStream();
+                    },
+                    badge: _emotionCaptureEnabled && _totalFaces > 0
+                        ? '$_smilingFaces/$_totalFaces'
+                        : null,
+                  ),
+                  _buildSwitchTile(
+                    'Hand Gesture Control',
+                    'Raise hand to capture, peace to switch',
+                    Icons.pan_tool,
+                    _handGestureEnabled,
+                    (v) {
+                      setState(() {
+                        _handGestureEnabled = v;
+                        if (v) _aiCoachEnabled = true;
                       });
                       _updateImageStream();
                     },
@@ -530,6 +815,17 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                       _updateImageStream();
                     },
                   ),
+                  _buildSwitchTile(
+                    'Auto-Shutter',
+                    'Auto-capture when pose matches',
+                    Icons.hdr_auto,
+                    _isAutoShutterEnabled,
+                    (v) => setState(() => _isAutoShutterEnabled = v),
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+                _buildSettingsSection('Detection & Recognition', [
                   _buildSwitchTile(
                     'Object Detection',
                     'Show labels on detected objects',
@@ -555,8 +851,33 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                     'AI composition guide',
                     Icons.rule,
                     _smartCompositionEnabled,
+                    (v) => setState(() => _smartCompositionEnabled = v),
+                  ),
+                ]),
+
+                const SizedBox(height: 20),
+                _buildSettingsSection('Creative Effects', [
+                  _buildSwitchTile(
+                    'Background Replacement',
+                    'Replace background with templates',
+                    Icons.wallpaper,
+                    _backgroundReplacementEnabled,
                     (v) {
-                      setState(() => _smartCompositionEnabled = v);
+                      setState(() {
+                        _backgroundReplacementEnabled = v;
+                        if (v) _selectedBackgroundIndex = 0;
+                      });
+                      _updateImageStream();
+                    },
+                  ),
+                  _buildSwitchTile(
+                    'AI Style Transfer',
+                    'Apply artistic filters',
+                    Icons.palette,
+                    _styleTransferEnabled,
+                    (v) {
+                      setState(() => _styleTransferEnabled = v);
+                      _updateImageStream();
                     },
                   ),
                   _buildSwitchTile(
@@ -569,10 +890,6 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                       _updateImageStream();
                     },
                   ),
-                ]),
-
-                const SizedBox(height: 20),
-                _buildSettingsSection('Camera Controls', [
                   _buildSwitchTile(
                     'Portrait Mode',
                     'Background blur effect',
@@ -580,6 +897,10 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                     _isPortraitMode,
                     (v) => setState(() => _isPortraitMode = v),
                   ),
+                ]),
+
+                const SizedBox(height: 20),
+                _buildSettingsSection('Camera Controls', [
                   _buildSwitchTile(
                     'Grid Overlay',
                     'Composition grid lines',
@@ -607,13 +928,6 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                     Icons.vertical_split,
                     _isSplitMode,
                     (v) => setState(() => _isSplitMode = v),
-                  ),
-                  _buildSwitchTile(
-                    'Auto-Shutter',
-                    'Auto-capture when pose matches',
-                    Icons.hdr_auto,
-                    _isAutoShutterEnabled,
-                    (v) => setState(() => _isAutoShutterEnabled = v),
                   ),
                 ]),
 
@@ -647,12 +961,6 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                     _aspectRatioLabels[_currentAspectRatioIndex],
                     Icons.crop,
                     () => _toggleAspectRatio(),
-                  ),
-                  _buildOptionTile(
-                    'Filter',
-                    _filterLabels[_filterIndex],
-                    Icons.palette,
-                    () => _toggleFilter(),
                   ),
                 ]),
 
@@ -688,8 +996,9 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
     String subtitle,
     IconData icon,
     bool value,
-    ValueChanged<bool> onChanged,
-  ) {
+    ValueChanged<bool> onChanged, {
+    String? badge,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -697,12 +1006,30 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
         borderRadius: BorderRadius.circular(12),
       ),
       child: SwitchListTile(
-        title: Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
+        title: Row(
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            if (badge != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: value ? Colors.green : Colors.grey,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+            ],
+          ],
         ),
         subtitle: Text(
           subtitle,
@@ -805,12 +1132,6 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
     });
   }
 
-  void _toggleFilter() {
-    setState(() {
-      _filterIndex = (_filterIndex + 1) % _filters.length;
-    });
-  }
-
   void _toggleLeveler() {
     setState(() => _isLevelerActive = !_isLevelerActive);
 
@@ -833,10 +1154,6 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
     });
   }
 
-  void _toggleFlash() {
-    _cycleFlash();
-  }
-
   void _cycleFlash() {
     FlashMode newMode;
     switch (_flashMode) {
@@ -851,6 +1168,10 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
     }
     _controller?.setFlashMode(newMode);
     setState(() => _flashMode = newMode);
+  }
+
+  void _toggleFlash() {
+    _cycleFlash();
   }
 
   String _getFlashLabel() {
@@ -981,16 +1302,21 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
             Positioned.fill(child: _buildSmartComposition()),
 
           if (_aiCoachEnabled) _buildAiScore(),
-
-          // Gesture indicator
+          if (_emotionCaptureEnabled) _buildEmotionIndicator(),
           if (_handGestureEnabled && _lastGestures.isNotEmpty)
             _buildGestureIndicator(),
 
-          // Top bar with settings button
+          // Top bar
           _buildTopBar(),
 
           // Bottom controls
           _buildBottomControls(),
+
+          // Background selector
+          if (_backgroundReplacementEnabled) _buildBackgroundSelector(),
+
+          // Style transfer selector
+          if (_styleTransferEnabled) _buildStyleTransferSelector(),
 
           if (_isCountingDown) _buildCountdown(),
         ],
@@ -1120,9 +1446,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
               ),
               IconButton(
                 onPressed: () {
-                  setState(() {
-                    _gridMode = (_gridMode + 1) % 3;
-                  });
+                  setState(() => _gridMode = (_gridMode + 1) % 3);
                 },
                 icon: Icon(
                   _gridMode == 0 ? Icons.grid_off : Icons.grid_on,
@@ -1148,23 +1472,38 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Transform.scale(
-                  scale: _calculateCoverScale(),
-                  child: Center(
-                    child: ColorFiltered(
-                      colorFilter:
-                          _filters[_filterIndex] ??
-                          const ColorFilter.mode(
-                            Colors.transparent,
-                            BlendMode.dst,
-                          ),
-                      child: CameraPreview(_controller!),
-                    ),
+                // Background replacement layer
+                if (_backgroundReplacementEnabled &&
+                    _backgroundImageData != null)
+                  Image.memory(
+                    _backgroundImageData!,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                  ),
+
+                // Camera preview with style transfer
+                ColorFiltered(
+                  colorFilter: _styleTransferEnabled && _selectedStyleIndex > 0
+                      ? (_styleTransfers[_selectedStyleIndex].filter ??
+                            const ColorFilter.mode(
+                              Colors.transparent,
+                              BlendMode.dst,
+                            ))
+                      : const ColorFilter.mode(
+                          Colors.transparent,
+                          BlendMode.dst,
+                        ),
+                  child: Transform.scale(
+                    scale: _calculateCoverScale(),
+                    child: Center(child: CameraPreview(_controller!)),
                   ),
                 ),
-                if (widget.photo != null)
+
+                // Ghost mode overlay
+                if (_isGhostMode && widget.photo != null)
                   Opacity(
-                    opacity: _isGhostMode ? 0.5 : 0,
+                    opacity: 0.5,
                     child: Image.network(
                       widget.photo!.url,
                       fit: BoxFit.contain,
@@ -1349,13 +1688,62 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
     );
   }
 
+  Widget _buildEmotionIndicator() {
+    final allSmiling = _totalFaces > 0 && _smilingFaces == _totalFaces;
+
+    return Positioned(
+      top: 100,
+      left: 20,
+      right: 20,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: allSmiling ? Colors.green.withOpacity(0.8) : Colors.black54,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: allSmiling ? Colors.greenAccent : Colors.yellow,
+              width: 2,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                allSmiling
+                    ? Icons.sentiment_very_satisfied
+                    : Icons.sentiment_satisfied_alt,
+                color: allSmiling ? Colors.greenAccent : Colors.yellow,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _totalFaces == 0
+                    ? "Looking for faces..."
+                    : allSmiling
+                    ? "Everyone smiling! 📸"
+                    : "$_smilingFaces of $_totalFaces smiling",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildGestureIndicator() {
     String gestureText = '';
     IconData gestureIcon = Icons.pan_tool;
+    Color color = Colors.amber;
 
     if (_lastGestures.contains(HandGesture.raisedHand)) {
       gestureText = 'Raise Hand - Capturing!';
       gestureIcon = Icons.back_hand;
+      color = Colors.green;
     } else if (_lastGestures.contains(HandGesture.peace)) {
       gestureText = 'Peace - Camera Switch';
       gestureIcon = Icons.vibration;
@@ -1369,30 +1757,144 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
       left: 0,
       right: 0,
       child: Center(
-        child: AnimatedOpacity(
-          opacity: 1.0,
-          duration: const Duration(seconds: 1),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(gestureIcon, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  gestureText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.8),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(gestureIcon, color: Colors.white, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                gestureText,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackgroundSelector() {
+    return Positioned(
+      bottom: 130,
+      left: 0,
+      right: 0,
+      child: SizedBox(
+        height: 80,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          itemCount: _backgroundTemplates.length,
+          itemBuilder: (context, index) {
+            final isSelected = index == _selectedBackgroundIndex;
+            return GestureDetector(
+              onTap: () {
+                setState(() => _selectedBackgroundIndex = index);
+                _loadBackgroundImage(index);
+              },
+              child: Container(
+                width: 60,
+                height: 60,
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isSelected ? Colors.amber : Colors.white54,
+                    width: isSelected ? 3 : 2,
+                  ),
+                  image: index == 0
+                      ? null
+                      : DecorationImage(
+                          image: NetworkImage(_backgroundTemplates[index]),
+                          fit: BoxFit.cover,
+                        ),
+                ),
+                child: index == 0
+                    ? const Icon(Icons.block, color: Colors.white)
+                    : null,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStyleTransferSelector() {
+    return Positioned(
+      bottom: 130,
+      left: 0,
+      right: 0,
+      child: Container(
+        height: 80,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: _styleTransfers.length,
+          itemBuilder: (context, index) {
+            final style = _styleTransfers[index];
+            final isSelected = index == _selectedStyleIndex;
+            return GestureDetector(
+              onTap: () {
+                setState(() => _selectedStyleIndex = index);
+              },
+              child: Container(
+                width: 80,
+                margin: const EdgeInsets.symmetric(horizontal: 5),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? Colors.amber.withOpacity(0.3)
+                      : Colors.white10,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isSelected ? Colors.amber : Colors.transparent,
+                    width: 2,
                   ),
                 ),
-              ],
-            ),
-          ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (style.filter != null)
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.purple.withOpacity(0.5),
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      )
+                    else
+                      const Icon(Icons.block, color: Colors.white54, size: 30),
+                    const SizedBox(height: 4),
+                    Text(
+                      style.name,
+                      style: TextStyle(
+                        color: isSelected ? Colors.amber : Colors.white,
+                        fontSize: 10,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -1429,6 +1931,15 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
       ),
     );
   }
+}
+
+// Style Transfer class
+class StyleTransfer {
+  final String name;
+  final ColorFilter? filter;
+  final String description;
+
+  StyleTransfer({required this.name, this.filter, required this.description});
 }
 
 // Custom Painters
