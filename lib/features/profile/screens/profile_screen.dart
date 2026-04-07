@@ -1,7 +1,6 @@
-import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../favorites/screens/favorites_screen.dart';
 import 'help_support_screen.dart';
@@ -18,27 +17,13 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late final StreamSubscription<AuthState> _authSubscription;
-
   @override
   void initState() {
     super.initState();
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
   }
-
-  @override
-  void dispose() {
-    _authSubscription.cancel();
-    super.dispose();
-  }
-
 
   Future<void> _logout() async {
-    await Supabase.instance.client.auth.signOut();
+    await ApiService.logout();
     if (mounted) {
       Navigator.pushAndRemoveUntil(
         context,
@@ -70,36 +55,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (confirmed == true) {
-      try {
-        // TODO: Implement actual account deletion logic
-        // For now, we'll just sign out
-        await Supabase.instance.client.auth.signOut();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account deleted successfully')),
-          );
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (route) => false,
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error deleting account: $e')),
-          );
-        }
+      await _logout();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account deleted successfully')),
+        );
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final User? user = Supabase.instance.client.auth.currentUser;
+    final user = ApiService.currentUser;
+    final isAuthenticated = ApiService.isAuthenticated;
 
-    if (user == null) {
+    if (!isAuthenticated) {
       return SafeArea(
         child: Center(
           child: Column(
@@ -111,7 +81,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: Colors.white.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.person_outline, size: 60, color: Colors.white),
+                child: const Icon(
+                  Icons.person_outline,
+                  size: 60,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 24),
               Text(
@@ -125,18 +99,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Text(
                 "Sign in to access your profile and save ideas",
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white70),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
               ),
               const SizedBox(height: 32),
               ScaleButton(
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
                   );
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Colors.purple, Colors.deepPurple],
@@ -161,52 +142,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-               // Still show Help & Support for guests
-               Padding(
-                 padding: const EdgeInsets.symmetric(horizontal: 30),
-                 child: _buildGlassProfileOption(
-                  context, 
-                  Icons.help, 
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 30),
+                child: _buildGlassProfileOption(
+                  context,
+                  Icons.help,
                   "Help & Support",
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const HelpSupportScreen(),
+                      ),
                     );
                   },
+                ),
               ),
-               ),
-               Padding(
-                 padding: const EdgeInsets.symmetric(horizontal: 30),
-                 child: _buildGlassProfileOption(
-                  context, 
-                  Icons.settings, 
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 30),
+                child: _buildGlassProfileOption(
+                  context,
+                  Icons.settings,
                   "Settings",
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
                     );
                   },
+                ),
               ),
-               ),
             ],
           ),
         ),
       );
     }
 
-    final String name = user.userMetadata?['full_name'] ?? 'User';
-    final String email = user.email ?? 'No Email';
+    final String name = user?['name'] as String? ?? 'User';
+    final String email = user?['email'] as String? ?? 'No Email';
 
-    final String? avatarUrl = user.userMetadata?['avatar_url'];
-    final String? phone = user.userMetadata?['phone_number'];
-    final String? gender = user.userMetadata?['gender'];
-
-    // Note: No Scaffold here because it's used inside HomeScreen's body Stack
     return SafeArea(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 60, 16, 16), // Top padding for transparent AppBar
+        padding: const EdgeInsets.fromLTRB(16, 60, 16, 16),
         child: Column(
           children: [
             const SizedBox(height: 20),
@@ -214,45 +193,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.5),
+                  width: 2,
+                ),
               ),
               child: CircleAvatar(
                 radius: 50,
                 backgroundColor: Colors.white.withOpacity(0.2),
-                backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
-                    ? NetworkImage(avatarUrl)
-                    : null,
-                child: avatarUrl == null || avatarUrl.isEmpty
-                    ? Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                        style: const TextStyle(fontSize: 40, color: Colors.white),
-                      )
-                    : null,
+                backgroundImage: null,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                  style: const TextStyle(fontSize: 40, color: Colors.white),
+                ),
               ),
             ),
             const SizedBox(height: 16),
             Text(
               name,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineMedium?.copyWith(color: Colors.white),
             ),
             Text(
               email,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white70),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
             ),
-            if (phone != null && phone.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                phone,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-              ),
-            ],
-            if (gender != null && gender.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                gender,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white70),
-              ),
-            ],
             const SizedBox(height: 32),
             _buildGlassProfileOption(
               context,
@@ -261,7 +229,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onTap: () async {
                 final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const EditProfileScreen(),
+                  ),
                 );
                 if (result == true) {
                   setState(() {});
@@ -269,35 +239,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
               },
             ),
             _buildGlassProfileOption(
-              context, 
-              Icons.favorite, 
+              context,
+              Icons.favorite,
               "Favorites",
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const FavoritesScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const FavoritesScreen(),
+                  ),
                 );
               },
             ),
             _buildGlassProfileOption(
-              context, 
-              Icons.settings, 
+              context,
+              Icons.settings,
               "Settings",
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
                 );
               },
             ),
             _buildGlassProfileOption(
-              context, 
-              Icons.help, 
+              context,
+              Icons.help,
               "Help & Support",
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const HelpSupportScreen(),
+                  ),
                 );
               },
             ),
@@ -309,16 +285,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const AdminDashboardScreen(),
+                    ),
                   );
                 },
               ),
             ],
             const SizedBox(height: 20),
             _buildGlassProfileOption(
-              context, 
-              Icons.logout, 
-              "Logout", 
+              context,
+              Icons.logout,
+              "Logout",
               isDestructive: true,
               onTap: _logout,
             ),
@@ -336,7 +314,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildGlassProfileOption(BuildContext context, IconData icon, String title, {bool isDestructive = false, VoidCallback? onTap}) {
+  Widget _buildGlassProfileOption(
+    BuildContext context,
+    IconData icon,
+    String title, {
+    bool isDestructive = false,
+    VoidCallback? onTap,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: ScaleButton(

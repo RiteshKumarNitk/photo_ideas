@@ -1,9 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/models/photo_model.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../core/widgets/scale_button.dart';
 import 'category_grid_screen.dart';
 
@@ -39,24 +38,27 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
     setState(() => _isLoading = true);
     try {
       // 1. Initialize with existing local subcategories
-      final Map<String, List<PhotoModel>> grouped = Map.from(widget.subCategories);
+      final Map<String, List<PhotoModel>> grouped = Map.from(
+        widget.subCategories,
+      );
 
       // 2. Fetch Category ID and Explicit Subcategories using Service
       try {
-        final allCategories = await SupabaseService.getCategories();
-        
+        final allCategories = await ApiService.getCategories();
+
         Map<String, dynamic> category = {};
         for (var cat in allCategories) {
-          if (cat['name'].toString().toLowerCase() == widget.title.toLowerCase()) {
+          if (cat['name'].toString().toLowerCase() ==
+              widget.title.toLowerCase()) {
             category = cat;
             break;
           }
         }
 
         if (category.isNotEmpty) {
-          final int categoryId = category['id'];
-          final subCats = await SupabaseService.getSubCategories(categoryId);
-          
+          final String categoryId = category['id'].toString();
+          final subCats = await ApiService.getSubCategories(categoryId);
+
           for (var sub in subCats) {
             String subName = sub['name'];
             if (!grouped.containsKey(subName)) {
@@ -64,36 +66,36 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
             }
           }
         } else {
-             // Fallback: Try removing " Photos" if present
-             if (widget.title.contains(' Photos')) {
-                 final simplified = widget.title.replaceAll(' Photos', '').trim();
-                 
-                 Map<String, dynamic> catSimple = {};
-                 for (var cat in allCategories) {
-                    if (cat['name'].toString().toLowerCase() == simplified.toLowerCase()) {
-                       catSimple = cat;
-                       break;
-                    }
-                 }
+          // Fallback: Try removing " Photos" if present
+          if (widget.title.contains(' Photos')) {
+            final simplified = widget.title.replaceAll(' Photos', '').trim();
 
-                 if (catSimple.isNotEmpty) {
-                    final int catId = catSimple['id'];
-                    final subCats = await SupabaseService.getSubCategories(catId);
-                    for (var sub in subCats) {
-                      String subName = sub['name'];
-                      if (!grouped.containsKey(subName)) {
-                        grouped[subName] = [];
-                      }
-                    }
-                 }
-             }
+            Map<String, dynamic> catSimple = {};
+            for (var cat in allCategories) {
+              if (cat['name'].toString().toLowerCase() ==
+                  simplified.toLowerCase()) {
+                catSimple = cat;
+                break;
+              }
+            }
+
+            if (catSimple.isNotEmpty) {
+              final String catId = catSimple['id'].toString();
+              final subCats = await ApiService.getSubCategories(catId);
+              for (var sub in subCats) {
+                String subName = sub['name'];
+                if (!grouped.containsKey(subName)) {
+                  grouped[subName] = [];
+                }
+              }
+            }
+          }
         }
       } catch (e) {
         debugPrint('Error fetching explicit subcategories via service: $e');
       }
 
       // 3. Fetch images from 'images' table
-      // We still need the images to populate the folders
       String simplifiedTitle = widget.title;
       bool hasSimplified = false;
       if (widget.title.contains(' Photos')) {
@@ -101,44 +103,38 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
         hasSimplified = true;
       }
 
-      dynamic imageResponse;
+      List<Map<String, dynamic>> imageResponse;
       if (hasSimplified) {
-        imageResponse = await Supabase.instance.client
-            .from('images')
-            .select()
-            .or('category.eq.${widget.title},category.eq.$simplifiedTitle');
+        // Fetch both and merge
+        final res1 = await ApiService.getImagesByCategory(widget.title);
+        final res2 = await ApiService.getImagesByCategory(simplifiedTitle);
+        imageResponse = [...res1, ...res2];
       } else {
-        imageResponse = await Supabase.instance.client
-            .from('images')
-            .select()
-            .eq('category', widget.title);
+        imageResponse = await ApiService.getImagesByCategory(widget.title);
       }
 
-      final List<PhotoModel> images = (imageResponse as List)
+      final List<PhotoModel> images = imageResponse
           .map((item) => PhotoModel.fromJson(item))
           .toList();
 
       // 4. Distribute images into groups
-      for (var img in images) {
-        // Find raw item to get sub_category
-        Map<String, dynamic> rawItem = {};
-        for (var item in (imageResponse as List)) {
-           if (item['url'] == img.url) {
-             rawItem = item;
-             break;
-           }
-        }
-        
+      for (int i = 0; i < images.length; i++) {
+        final img = images[i];
+        final rawItem = imageResponse[i];
+
         // Fallback logic for sub_category
-        final subCat = rawItem['sub_category'] != null ? rawItem['sub_category'] as String : 'General';
-        
+        final subCat = rawItem['sub_category'] != null
+            ? rawItem['sub_category'] as String
+            : 'General';
+
         if (!grouped.containsKey(subCat)) {
-          // Only add 'General' if we have images for it, or if it was explicitly defined (unlikely for General)
           grouped[subCat] = [];
         }
-        
+
         // Check for duplicates before adding
-        final exists = grouped[subCat]!.any((element) => element.url == img.url);
+        final exists = grouped[subCat]!.any(
+          (element) => element.url == img.url,
+        );
         if (!exists) {
           grouped[subCat]!.add(img);
         }
@@ -185,46 +181,51 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
           // Blur Effect
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(
-              color: Colors.black.withOpacity(0.4),
-            ),
+            child: Container(color: Colors.black.withOpacity(0.4)),
           ),
           // Content
-          _isLoading 
-              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
               : keys.isEmpty
-                  ? const Center(child: Text("No ideas found", style: TextStyle(color: Colors.white)))
-                  : Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
-                      child: MasonryGridView.count(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        itemCount: keys.length,
-                        itemBuilder: (context, index) {
-                          final key = keys[index];
-                          final count = _subCategories[key]?.length ?? 0;
-                          
-                          return _buildGlassSubCategoryGridItem(
-                            context, 
-                            title: key, 
-                            count: count,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => CategoryGridScreen(
-                                    title: "${widget.title} - $key",
-                                    fallbackImages: _subCategories[key] ?? [],
-                                    // We don't pass filters here because we are already drilled down
-                                  ),
-                                ),
-                              );
-                            },
+              ? const Center(
+                  child: Text(
+                    "No ideas found",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                )
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
+                  child: MasonryGridView.count(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    itemCount: keys.length,
+                    itemBuilder: (context, index) {
+                      final key = keys[index];
+                      final count = _subCategories[key]?.length ?? 0;
+
+                      return _buildGlassSubCategoryGridItem(
+                        context,
+                        title: key,
+                        count: count,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CategoryGridScreen(
+                                title: "${widget.title} - $key",
+                                fallbackImages: _subCategories[key] ?? [],
+                                // We don't pass filters here because we are already drilled down
+                              ),
+                            ),
                           );
                         },
-                      ),
-                    ),
+                      );
+                    },
+                  ),
+                ),
         ],
       ),
     );
@@ -252,11 +253,7 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  _getSubCategoryIcon(title),
-                  color: Colors.white,
-                  size: 32,
-                ),
+                Icon(_getSubCategoryIcon(title), color: Colors.white, size: 32),
                 const SizedBox(height: 12),
                 Text(
                   title,
@@ -270,10 +267,7 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
                 const SizedBox(height: 4),
                 Text(
                   "$count ideas",
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
             ),
@@ -285,7 +279,8 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
 
   IconData _getSubCategoryIcon(String title) {
     final lowerTitle = title.toLowerCase();
-    if (lowerTitle.contains('men') && !lowerTitle.contains('women')) return Icons.man;
+    if (lowerTitle.contains('men') && !lowerTitle.contains('women'))
+      return Icons.man;
     if (lowerTitle.contains('women')) return Icons.woman;
     if (lowerTitle.contains('short')) return Icons.content_cut;
     if (lowerTitle.contains('long')) return Icons.waves;
@@ -305,4 +300,3 @@ class _SubCategoryScreenState extends State<SubCategoryScreen> {
     return Icons.category;
   }
 }
-

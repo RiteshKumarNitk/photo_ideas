@@ -1,6 +1,5 @@
-
 import 'package:flutter/material.dart';
-import '../../../core/services/supabase_service.dart';
+import '../../../core/services/api_service.dart';
 import '../../images/models/face_filter_model.dart';
 import 'admin_filter_upload_screen.dart';
 
@@ -24,7 +23,7 @@ class _AdminFiltersScreenState extends State<AdminFiltersScreen> {
   Future<void> _loadFilters() async {
     setState(() => _isLoading = true);
     try {
-      final data = await SupabaseService.getFaceFilters();
+      final data = await ApiService.getFaceFilters();
       if (mounted) {
         setState(() {
           _filters = data.map((json) => FaceFilter.fromJson(json)).toList();
@@ -34,9 +33,9 @@ class _AdminFiltersScreenState extends State<AdminFiltersScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading filters: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading filters: $e')));
       }
     }
   }
@@ -48,7 +47,10 @@ class _AdminFiltersScreenState extends State<AdminFiltersScreen> {
         title: const Text('Delete Filter'),
         content: const Text('Are you sure? This cannot be undone.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -61,26 +63,29 @@ class _AdminFiltersScreenState extends State<AdminFiltersScreen> {
     if (confirm != true) return;
 
     try {
-      await SupabaseService.deleteFaceFilter(id);
-      _loadFilters(); // Refresh
+      await ApiService.deleteFaceFilter(id);
+      _loadFilters();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Filter deleted')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Filter deleted')));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black, // Dark theme
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Manage Face Filters', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Manage Face Filters',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.transparent,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -89,7 +94,9 @@ class _AdminFiltersScreenState extends State<AdminFiltersScreen> {
         onPressed: () async {
           final result = await Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const AdminFilterUploadScreen()),
+            MaterialPageRoute(
+              builder: (context) => const AdminFilterUploadScreen(),
+            ),
           );
           if (result == true) {
             _loadFilters();
@@ -100,41 +107,60 @@ class _AdminFiltersScreenState extends State<AdminFiltersScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _filters.isEmpty
-              ? const Center(child: Text('No filters found. Add one!', style: TextStyle(color: Colors.white)))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _filters.length,
-                  itemBuilder: (context, index) {
-                    final filter = _filters[index];
-                    return Card(
-                      color: Colors.grey[900],
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: ListTile(
-                        leading: Container(
-                          width: 50, height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white10,
-                            borderRadius: BorderRadius.circular(8),
-                            image: filter.iconUrl.isNotEmpty
-                                ? DecorationImage(image: NetworkImage(filter.iconUrl), fit: BoxFit.cover)
-                                : null,
-                          ),
-                          child: filter.iconUrl.isEmpty ? const Icon(Icons.face, color: Colors.white) : null,
-                        ),
-                        title: Text(filter.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                          '${filter.anchor.toString().split('.').last} • Scale: ${filter.scale}', 
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.redAccent),
-                          onPressed: () => _deleteFilter(filter.id),
-                        ),
+          ? const Center(
+              child: Text(
+                'No filters found. Add one!',
+                style: TextStyle(color: Colors.white),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: _filters.length,
+              itemBuilder: (context, index) {
+                final filter = _filters[index];
+                return Card(
+                  color: Colors.grey[900],
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: ListTile(
+                    leading: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(8),
+                        image: filter.iconUrl.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(filter.iconUrl),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                       ),
-                    );
-                  },
-                ),
+                      child: filter.iconUrl.isEmpty
+                          ? const Icon(Icons.face, color: Colors.white)
+                          : null,
+                    ),
+                    title: Text(
+                      filter.name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    subtitle: Text(
+                      '${filter.anchor.toString().split('.').last} • Scale: ${filter.scale}',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.redAccent),
+                      onPressed: () => _deleteFilter(filter.id),
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

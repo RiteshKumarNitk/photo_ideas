@@ -1,11 +1,10 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../../utils/data_source.dart';
 import '../../../core/utils/page_transitions.dart';
 import '../../../core/models/photo_model.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../core/widgets/scale_button.dart';
 import '../../../core/widgets/shimmer_placeholder.dart';
 import '../../categories/screens/category_grid_screen.dart';
@@ -331,13 +330,9 @@ class _HomeContentState extends State<HomeContent> {
 
     try {
       // 1. Fetch Trending Images
-      final response = await Supabase.instance.client
-          .from('images')
-          .select() 
-          .order('created_at', ascending: false)
-          .limit(20);
+      final response = await ApiService.getAllImages();
       
-      final supabaseImages = (response as List)
+      final supabaseImages = response
           .map((item) => PhotoModel.fromJson(item))
           .toList();
       
@@ -345,8 +340,8 @@ class _HomeContentState extends State<HomeContent> {
         images.addAll(supabaseImages);
       }
 
-      // 2. Fetch Categories ONLY from Supabase (as requested)
-      final cats = await SupabaseService.getCategories();
+      // 2. Fetch Categories ONLY from ApiService
+      final cats = await ApiService.getCategories();
       
       // Process database categories into UI models
       for (var cat in cats) {

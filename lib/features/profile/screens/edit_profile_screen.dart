@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -18,7 +18,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _phoneController = TextEditingController();
   String? _selectedGender;
   bool _isLoading = false;
-  
+
   File? _imageFile;
   Uint8List? _webImage;
   String? _currentAvatarUrl;
@@ -31,12 +31,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _loadUserData() {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = ApiService.currentUser;
     if (user != null) {
-      _nameController.text = user.userMetadata?['full_name'] ?? '';
-      _phoneController.text = user.userMetadata?['phone_number'] ?? '';
-      _selectedGender = user.userMetadata?['gender'];
-      _currentAvatarUrl = user.userMetadata?['avatar_url'];
+      _nameController.text = user['name'] as String? ?? '';
+      _phoneController.text = user['phone'] as String? ?? '';
+      _selectedGender = user['gender'] as String?;
+      _currentAvatarUrl = user['avatar_url'] as String?;
     }
   }
 
@@ -65,40 +65,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error picking image: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error picking image: $e')));
       }
-    }
-  }
-
-  Future<String?> _uploadImage(String userId) async {
-    if (_imageFile == null && _webImage == null) return null;
-
-    final fileName = '$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
-    try {
-      if (kIsWeb) {
-        await Supabase.instance.client.storage.from('profiles').uploadBinary(
-              fileName,
-              _webImage!,
-              fileOptions: const FileOptions(upsert: true),
-            );
-      } else {
-        await Supabase.instance.client.storage.from('profiles').upload(
-              fileName,
-              _imageFile!,
-              fileOptions: const FileOptions(upsert: true),
-            );
-      }
-      
-      final imageUrl = Supabase.instance.client.storage
-          .from('profiles')
-          .getPublicUrl(fileName);
-      
-      return imageUrl;
-    } catch (e) {
-      debugPrint('Error uploading image: $e');
-      return null;
     }
   }
 
@@ -110,40 +80,28 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
 
     try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user == null) throw Exception('No user logged in');
-
-      String? avatarUrl = _currentAvatarUrl;
-      if (_imageFile != null || _webImage != null) {
-        final uploadedUrl = await _uploadImage(user.id);
-        if (uploadedUrl != null) {
-          avatarUrl = uploadedUrl;
-        } else {
-          throw Exception('Failed to upload image. Please try again.');
-        }
-      }
-
-      await Supabase.instance.client.auth.updateUser(
-        UserAttributes(
-          data: {
-            'full_name': _nameController.text.trim(),
-            'phone_number': _phoneController.text.trim(),
-            'gender': _selectedGender,
-            'avatar_url': avatarUrl,
-          },
-        ),
+      final success = await ApiService.updateProfile(
+        fullName: _nameController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+        gender: _selectedGender,
+        avatarUrl: _currentAvatarUrl,
       );
-      if (mounted) {
+
+      if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully!')),
         );
         Navigator.pop(context, true);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update profile')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating profile: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
       }
     } finally {
       if (mounted) {
@@ -159,14 +117,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Edit Profile', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Edit Profile',
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Stack(
         children: [
-          // Background Image
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -177,14 +137,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
             ),
           ),
-          // Blur Effect
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(
-              color: Colors.black.withOpacity(0.4),
-            ),
+            child: Container(color: Colors.black.withOpacity(0.4)),
           ),
-          // Content
           SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
             child: Form(
@@ -198,7 +154,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           padding: const EdgeInsets.all(4),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white.withOpacity(0.5), width: 2),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.5),
+                              width: 2,
+                            ),
                           ),
                           child: CircleAvatar(
                             radius: 60,
@@ -206,11 +165,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             backgroundImage: _webImage != null
                                 ? MemoryImage(_webImage!)
                                 : _imageFile != null
-                                    ? FileImage(_imageFile!) as ImageProvider
-                                    : (_currentAvatarUrl != null && _currentAvatarUrl!.isNotEmpty)
-                                        ? NetworkImage(_currentAvatarUrl!)
-                                        : null,
-                            child: (_webImage == null && _imageFile == null && (_currentAvatarUrl == null || _currentAvatarUrl!.isEmpty))
+                                ? FileImage(_imageFile!) as ImageProvider
+                                : (_currentAvatarUrl != null &&
+                                      _currentAvatarUrl!.isNotEmpty)
+                                ? NetworkImage(_currentAvatarUrl!)
+                                : null,
+                            child:
+                                (_webImage == null &&
+                                    _imageFile == null &&
+                                    (_currentAvatarUrl == null ||
+                                        _currentAvatarUrl!.isEmpty))
                                 ? const Icon(
                                     Icons.person,
                                     size: 60,
@@ -273,16 +237,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.white.withOpacity(0.3)),
+                          side: BorderSide(
+                            color: Colors.white.withOpacity(0.3),
+                          ),
                         ),
                       ),
                       child: _isLoading
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
-                          : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          : const Text(
+                              'Save Changes',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
                   ),
                 ],
@@ -318,7 +293,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
           ),
           validator: validator,
         ),
@@ -333,7 +311,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: DropdownButtonFormField<String>(
           value: _selectedGender,
-          dropdownColor: Colors.grey[900], // Solid color for dropdown menu to be readable
+          dropdownColor: Colors.grey[900],
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
             labelText: 'Gender',
@@ -344,13 +322,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
           ),
           items: ['Male', 'Female', 'Other']
-              .map((label) => DropdownMenuItem(
-                    value: label,
-                    child: Text(label),
-                  ))
+              .map(
+                (label) => DropdownMenuItem(value: label, child: Text(label)),
+              )
               .toList(),
           onChanged: (value) {
             setState(() {
@@ -361,7 +341,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
     );
   }
-  
+
   @override
   void dispose() {
     _nameController.dispose();

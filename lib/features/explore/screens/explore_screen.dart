@@ -5,7 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../utils/data_source.dart';
 import '../../images/screens/fullscreen_image_viewer.dart';
-import '../../../core/services/supabase_service.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/models/photo_model.dart';
 import '../../../core/widgets/scale_button.dart';
 import 'discovery_screen.dart';
@@ -25,7 +25,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
   String _selectedFilter = 'All';
 
   final List<String> _filters = [
-    'All', 'Wedding', 'Nature', 'Travel', 'Baby', 'Architecture', 'Haircut', 'Portrait'
+    'All',
+    'Wedding',
+    'Nature',
+    'Travel',
+    'Baby',
+    'Architecture',
+    'Haircut',
+    'Portrait',
   ];
 
   @override
@@ -35,18 +42,18 @@ class _ExploreScreenState extends State<ExploreScreen> {
   }
 
   Future<void> _loadImages() async {
-    // Try to fetch from Supabase
-    List<String> imageUrls = await SupabaseService.getAllImages();
+    List<Map<String, dynamic>> imageData = [];
+    try {
+      imageData = await ApiService.getAllImages();
+    } catch (e) {
+      debugPrint('Error fetching images: $e');
+    }
+
     List<PhotoModel> images = [];
 
-    if (imageUrls.isNotEmpty) {
-       images = imageUrls.map((url) => PhotoModel(
-        url: url,
-        category: 'Explore', // We might want to fetch real categories later
-        posingInstructions: 'Explore different angles and lighting.',
-      )).toList();
+    if (imageData.isNotEmpty) {
+      images = imageData.map((item) => PhotoModel.fromJson(item)).toList();
     } else {
-      // Fallback to local data
       images = [
         ...DataSource.haircutImages,
         ...DataSource.weddingImages,
@@ -68,24 +75,19 @@ class _ExploreScreenState extends State<ExploreScreen> {
 
   void _applyFilters() {
     String query = _searchController.text.toLowerCase();
-    
+
     setState(() {
       _displayedImages = _allImages.where((image) {
-        // Filter by Search Query
-        bool matchesQuery = query.isEmpty || image.category.toLowerCase().contains(query) || 
-                            image.posingInstructions.toLowerCase().contains(query);
-        
-        // Filter by Category Chip (Approximate match since we just have urls mostly from simple fetch)
-        // If the 'category' field in PhotoModel is accurate, use it. 
-        // Note: In _loadImages, network images get 'Explore' as category.
-        // For local images, they have correct categories. 
-        // Ideally, we'd fetch category with image from Supabase.
-        
+        bool matchesQuery =
+            query.isEmpty ||
+            image.category.toLowerCase().contains(query) ||
+            image.posingInstructions.toLowerCase().contains(query);
+
         bool matchesFilter = _selectedFilter == 'All';
         if (!matchesFilter) {
-           // For now, this might only work well with local data or if we update the fetch logic
-           // But let's check the category field.
-           matchesFilter = image.category.toLowerCase().contains(_selectedFilter.toLowerCase());
+          matchesFilter = image.category.toLowerCase().contains(
+            _selectedFilter.toLowerCase(),
+          );
         }
 
         return matchesQuery && matchesFilter;
@@ -108,7 +110,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
         slivers: [
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.only(top: 80, left: 20, right: 20, bottom: 20),
+              padding: const EdgeInsets.only(
+                top: 80,
+                left: 20,
+                right: 20,
+                bottom: 20,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -137,12 +144,20 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           style: const TextStyle(color: Colors.white),
                           decoration: InputDecoration(
                             hintText: "Search ideas...",
-                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-                            prefixIcon: const Icon(Icons.search, color: Colors.white70),
+                            hintStyle: TextStyle(
+                              color: Colors.white.withOpacity(0.5),
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              color: Colors.white70,
+                            ),
                             filled: true,
-                            fillColor: Colors.transparent, // Color provided by Container
+                            fillColor: Colors.transparent,
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 16,
+                            ),
                           ),
                         ),
                       ),
@@ -162,15 +177,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
               itemBuilder: (context, index) {
                 final photo = _displayedImages[index];
                 return ScaleButton(
-                   onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => FullscreenImageViewer(photo: photo),
-                        ),
-                      );
-                   },
-                   child: ClipRRect(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            FullscreenImageViewer(photo: photo),
+                      ),
+                    );
+                  },
+                  child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: CachedNetworkImage(
                       imageUrl: photo.url,
@@ -183,7 +199,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ),
                       ),
                       errorWidget: (context, url, error) => Container(
-                        height: 200, 
+                        height: 200,
                         color: Colors.white10,
                         child: const Icon(Icons.error, color: Colors.white54),
                       ),

@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../profile/screens/edit_profile_screen.dart';
@@ -21,7 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
 
   Future<void> _logout(BuildContext context) async {
-    await Supabase.instance.client.auth.signOut();
+    await ApiService.logout();
     if (context.mounted) {
       Navigator.pushAndRemoveUntil(
         context,
@@ -53,29 +53,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (confirmed == true) {
-      try {
-        // TODO: Implement actual account deletion logic (e.g., call an Edge Function)
-        // await Supabase.instance.client.functions.invoke('delete-account');
-        
-        // For now, we'll just sign out
-        await Supabase.instance.client.auth.signOut();
-        
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account deleted successfully')),
-          );
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => const LoginScreen()),
-            (route) => false,
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error deleting account: $e')),
-          );
-        }
+      await _logout(context);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account deleted successfully')),
+        );
       }
     }
   }
@@ -83,9 +65,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = ApiService.currentUser;
     final isGuest = user == null;
-    final isAdmin = user?.email == 'riteshkumar.nitk21@gmail.com';
+    final isAdmin = user?['email'] == 'riteshkumar.nitk21@gmail.com';
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -97,7 +79,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
       body: Stack(
         children: [
-          // Background Image
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -108,14 +89,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ),
-          // Blur Effect
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(
-              color: Colors.black.withOpacity(0.4),
-            ),
+            child: Container(color: Colors.black.withOpacity(0.4)),
           ),
-          // Content
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
             children: [
@@ -128,7 +105,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onTap: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const EditProfileScreen(),
+                      ),
                     );
                   },
                 ),
@@ -137,7 +116,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSectionHeader(context, "Appearance"),
               _buildGlassSwitchTile(
                 context,
-                icon: themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                icon: themeProvider.isDarkMode
+                    ? Icons.dark_mode
+                    : Icons.light_mode,
                 title: "Dark Mode",
                 value: themeProvider.isDarkMode,
                 onChanged: (value) {
@@ -148,7 +129,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSectionHeader(context, "Notifications"),
               _buildGlassSwitchTile(
                 context,
-                icon: _notificationsEnabled ? Icons.notifications_active : Icons.notifications_off,
+                icon: _notificationsEnabled
+                    ? Icons.notifications_active
+                    : Icons.notifications_off,
                 title: "Push Notifications",
                 value: _notificationsEnabled,
                 onChanged: (value) {
@@ -166,7 +149,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const HelpSupportScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const HelpSupportScreen(),
+                    ),
                   );
                 },
               ),
@@ -177,7 +162,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const PrivacyPolicyScreen(),
+                    ),
                   );
                 },
               ),
@@ -188,7 +175,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const TermsOfServiceScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const TermsOfServiceScreen(),
+                    ),
                   );
                 },
               ),
@@ -213,9 +202,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   icon: Icons.login,
                   title: "Sign In",
                   onTap: () {
-                     Navigator.pushAndRemoveUntil(
+                    Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      MaterialPageRoute(
+                        builder: (context) => const LoginScreen(),
+                      ),
                       (route) => false,
                     );
                   },
@@ -287,7 +278,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   color: isDestructive ? Colors.redAccent : Colors.white,
                 ),
               ),
-              trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.white54),
+              trailing: const Icon(
+                Icons.chevron_right,
+                size: 20,
+                color: Colors.white54,
+              ),
               onTap: onTap,
             ),
           ),
@@ -316,15 +311,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
             child: SwitchListTile(
-              secondary: Icon(
-                icon,
-                color: Colors.white,
-              ),
+              secondary: Icon(icon, color: Colors.white),
               title: Text(
                 title,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: Colors.white),
               ),
               value: value,
               onChanged: onChanged,
@@ -356,21 +348,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               border: Border.all(color: Colors.white.withOpacity(0.1)),
             ),
             child: ListTile(
-              leading: Icon(
-                icon,
-                color: Colors.white,
-              ),
+              leading: Icon(icon, color: Colors.white),
               title: Text(
                 title,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: Colors.white),
               ),
               trailing: Text(
                 trailing,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Colors.white54,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.white54),
               ),
             ),
           ),

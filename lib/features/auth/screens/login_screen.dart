@@ -1,7 +1,6 @@
-import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../home/screens/home_screen.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
@@ -15,51 +14,38 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  
-  // Controllers
+
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  
-  bool _isLoading = false;
-  late final StreamSubscription<AuthState> _authSubscription;
 
-  @override
-  void initState() {
-    super.initState();
-    _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      final session = data.session;
-      if (session != null && mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (route) => false,
-        );
-      }
-    });
-  }
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
-    _authSubscription.cancel();
     super.dispose();
   }
 
-  // --- Password Login ---
-
   Future<void> _passwordLogin() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      final success = await ApiService.login(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
-      // Auth listener handles navigation
-    } on AuthException catch (e) {
-      if (mounted) _showError(e.message);
+
+      if (success && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      } else if (mounted) {
+        _showError('Invalid email or password');
+      }
     } catch (e) {
       if (mounted) _showError('Unexpected error occurred');
     } finally {
@@ -67,15 +53,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // --- UI Helpers ---
-
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
-
-  // --- Build ---
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +65,6 @@ class _LoginScreenState extends State<LoginScreen> {
       resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
-          // Background
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -98,8 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
             child: Container(color: Colors.black.withOpacity(0.4)),
           ),
-          
-          // Content
+
           Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
@@ -118,54 +98,79 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.camera_alt, size: 60, color: Colors.white.withOpacity(0.9)),
+                        Icon(
+                          Icons.camera_alt,
+                          size: 60,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
                         const SizedBox(height: 20),
                         const Text(
                           "Welcome Back",
-                          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                         const SizedBox(height: 8),
-                         Text(
+                        Text(
                           "Sign in to continue exploring ideas",
-                          style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.white.withOpacity(0.8),
+                          ),
                         ),
                         const SizedBox(height: 32),
 
-                        // Password Form (No Tabs anymore)
                         _buildPasswordForm(),
 
                         const SizedBox(height: 16),
-                        
-                        // Action Button
+
                         SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _passwordLogin,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white,
-                                foregroundColor: Colors.black,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _passwordLogin,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              child: _isLoading
-                                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : const Text("Login", style: TextStyle(fontWeight: FontWeight.bold)),
                             ),
+                            child: _isLoading
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text(
+                                    "Login",
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                           ),
+                        ),
 
                         const SizedBox(height: 24),
-                        
-                        // Switch to Signup
+
                         TextButton(
                           onPressed: () {
                             Navigator.pushReplacement(
                               context,
-                              MaterialPageRoute(builder: (context) => const SignUpScreen()),
+                              MaterialPageRoute(
+                                builder: (context) => const SignUpScreen(),
+                              ),
                             );
                           },
                           child: Text(
                             "Don't have an account? Sign Up",
-                            style: TextStyle(color: Colors.white.withOpacity(0.9)),
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                            ),
                           ),
                         ),
                       ],
@@ -175,8 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          
-          // Back Button
+
           Positioned(
             top: 40,
             left: 20,
@@ -206,7 +210,8 @@ class _LoginScreenState extends State<LoginScreen> {
             controller: _emailController,
             style: const TextStyle(color: Colors.white),
             decoration: _inputDecoration("Email", Icons.email_outlined),
-            validator: (val) => val != null && val.isNotEmpty ? null : 'Required',
+            validator: (val) =>
+                val != null && val.isNotEmpty ? null : 'Required',
           ),
           const SizedBox(height: 16),
           TextFormField(
@@ -214,7 +219,8 @@ class _LoginScreenState extends State<LoginScreen> {
             obscureText: true,
             style: const TextStyle(color: Colors.white),
             decoration: _inputDecoration("Password", Icons.lock_outline),
-            validator: (val) => val != null && val.isNotEmpty ? null : 'Required',
+            validator: (val) =>
+                val != null && val.isNotEmpty ? null : 'Required',
           ),
           Align(
             alignment: Alignment.centerRight,
@@ -222,10 +228,15 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: () {
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const ForgotPasswordScreen(),
+                  ),
                 );
               },
-              child: const Text("Forgot Password?", style: TextStyle(color: Colors.white)),
+              child: const Text(
+                "Forgot Password?",
+                style: TextStyle(color: Colors.white),
+              ),
             ),
           ),
         ],
@@ -240,9 +251,18 @@ class _LoginScreenState extends State<LoginScreen> {
       prefixIcon: Icon(icon, color: Colors.white.withOpacity(0.8)),
       filled: true,
       fillColor: Colors.white.withOpacity(0.1),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.white.withOpacity(0.1))),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Colors.white)),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Colors.white),
+      ),
       counterText: "",
     );
   }

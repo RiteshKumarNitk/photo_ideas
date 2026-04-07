@@ -5,7 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../images/screens/fullscreen_image_viewer.dart';
 import '../../images/screens/image_detail_screen.dart';
-import '../../../core/services/supabase_service.dart';
+import '../../../core/services/api_service.dart';
 import '../../../core/models/photo_model.dart';
 import '../../../core/widgets/scale_button.dart';
 import '../../../core/utils/page_transitions.dart';
@@ -50,15 +50,9 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
     if (widget.fallbackImages.isNotEmpty) {
       images = widget.fallbackImages;
     } else {
-       // Try to fetch from Supabase if fallback is empty
-       // This logic might need adjustment based on how we want to mix local/remote data
        try {
-         List<String> imageUrls = await SupabaseService.getImagesByCategory(widget.title);
-         images = imageUrls.map((url) => PhotoModel(
-            url: url, 
-            category: widget.title,
-            posingInstructions: "Stand naturally and smile! Ensure good lighting falls on your face."
-          )).toList();
+         final response = await ApiService.getImagesByCategory(widget.title);
+         images = response.map((item) => PhotoModel.fromJson(item)).toList();
        } catch (e) {
          debugPrint("Error loading images: $e");
        }

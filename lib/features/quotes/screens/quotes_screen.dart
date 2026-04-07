@@ -3,13 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../auth/screens/login_screen.dart';
-import '../../../core/services/supabase_service.dart';
+import '../../../core/services/api_service.dart';
 import '../../../utils/data_source.dart';
+import '../../auth/screens/login_screen.dart';
 
 class QuotesScreen extends StatelessWidget {
-  final List<String> fallbackQuotes; // Kept for backward compatibility if needed, but we'll use DataSource.quoteCategories
+  final List<String> fallbackQuotes;
 
   const QuotesScreen({super.key, required this.fallbackQuotes});
 
@@ -20,14 +19,16 @@ class QuotesScreen extends StatelessWidget {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Quote Categories", style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Quote Categories",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Stack(
         children: [
-          // Background Image
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -38,14 +39,10 @@ class QuotesScreen extends StatelessWidget {
               ),
             ),
           ),
-          // Blur Effect
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(
-              color: Colors.black.withOpacity(0.4),
-            ),
+            child: Container(color: Colors.black.withOpacity(0.4)),
           ),
-          // Content
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
             child: MasonryGridView.count(
@@ -56,10 +53,10 @@ class QuotesScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 final category = categories[index];
                 final count = DataSource.quoteCategories[category]?.length ?? 0;
-                
+
                 return _buildGlassCategoryGridItem(
-                  context, 
-                  title: category, 
+                  context,
+                  title: category,
                   count: count,
                   onTap: () {
                     Navigator.push(
@@ -67,7 +64,8 @@ class QuotesScreen extends StatelessWidget {
                       MaterialPageRoute(
                         builder: (context) => QuoteListScreen(
                           category: category,
-                          fallbackQuotes: DataSource.quoteCategories[category] ?? [],
+                          fallbackQuotes:
+                              DataSource.quoteCategories[category] ?? [],
                         ),
                       ),
                     );
@@ -103,11 +101,7 @@ class QuotesScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  _getCategoryIcon(title),
-                  color: Colors.white,
-                  size: 32,
-                ),
+                Icon(_getCategoryIcon(title), color: Colors.white, size: 32),
                 const SizedBox(height: 12),
                 Text(
                   title,
@@ -121,10 +115,7 @@ class QuotesScreen extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   "Explore",
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ],
             ),
@@ -136,12 +127,18 @@ class QuotesScreen extends StatelessWidget {
 
   IconData _getCategoryIcon(String title) {
     switch (title) {
-      case 'Love': return Icons.favorite;
-      case 'Wedding': return Icons.favorite_border; // Or a ring icon if available
-      case 'Sad': return Icons.sentiment_dissatisfied;
-      case 'Motivational': return Icons.lightbulb_outline;
-      case 'Funny': return Icons.sentiment_very_satisfied;
-      default: return Icons.format_quote;
+      case 'Love':
+        return Icons.favorite;
+      case 'Wedding':
+        return Icons.favorite_border;
+      case 'Sad':
+        return Icons.sentiment_dissatisfied;
+      case 'Motivational':
+        return Icons.lightbulb_outline;
+      case 'Funny':
+        return Icons.sentiment_very_satisfied;
+      default:
+        return Icons.format_quote;
     }
   }
 }
@@ -151,7 +148,7 @@ class QuoteListScreen extends StatefulWidget {
   final List<String> fallbackQuotes;
 
   const QuoteListScreen({
-    super.key, 
+    super.key,
     required this.category,
     required this.fallbackQuotes,
   });
@@ -172,18 +169,18 @@ class _QuoteListScreenState extends State<QuoteListScreen> {
 
   Future<void> _loadQuotes() async {
     setState(() => _isLoading = true);
-    
+
     try {
-      // Fetch from Supabase with filter
-      final quotes = await SupabaseService.getQuotesByCategory(widget.category);
+      final quotes = await ApiService.getQuotesByCategory(widget.category);
 
       if (mounted) {
         setState(() {
           if (quotes.isNotEmpty) {
             _quotes = quotes;
           } else {
-            // Fallback
-            _quotes = widget.fallbackQuotes.map((q) => {'text': q, 'author': 'Unknown', 'id': -1}).toList();
+            _quotes = widget.fallbackQuotes
+                .map((q) => {'text': q, 'author': 'Unknown', 'id': -1})
+                .toList();
           }
           _isLoading = false;
         });
@@ -192,8 +189,9 @@ class _QuoteListScreenState extends State<QuoteListScreen> {
       debugPrint('Error loading quotes: $e');
       if (mounted) {
         setState(() {
-          // Fallback on error
-          _quotes = widget.fallbackQuotes.map((q) => {'text': q, 'author': 'Unknown', 'id': -1}).toList();
+          _quotes = widget.fallbackQuotes
+              .map((q) => {'text': q, 'author': 'Unknown', 'id': -1})
+              .toList();
           _isLoading = false;
         });
       }
@@ -205,14 +203,16 @@ class _QuoteListScreenState extends State<QuoteListScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(widget.category, style: const TextStyle(color: Colors.white)),
+        title: Text(
+          widget.category,
+          style: const TextStyle(color: Colors.white),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Stack(
         children: [
-          // Background Image
           Container(
             decoration: const BoxDecoration(
               image: DecorationImage(
@@ -223,31 +223,29 @@ class _QuoteListScreenState extends State<QuoteListScreen> {
               ),
             ),
           ),
-          // Blur Effect
           BackdropFilter(
             filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-            child: Container(
-              color: Colors.black.withOpacity(0.4),
-            ),
+            child: Container(color: Colors.black.withOpacity(0.4)),
           ),
-          // Content
-          _isLoading 
-            ? const Center(child: CircularProgressIndicator(color: Colors.white))
-            : Padding(
-                padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
-                child: MasonryGridView.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  itemCount: _quotes.length,
-                  itemBuilder: (context, index) {
-                    return QuoteCard(
-                      quote: _quotes[index],
-                      category: widget.category,
-                    );
-                  },
+          _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
+                  child: MasonryGridView.count(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    itemCount: _quotes.length,
+                    itemBuilder: (context, index) {
+                      return QuoteCard(
+                        quote: _quotes[index],
+                        category: widget.category,
+                      );
+                    },
+                  ),
                 ),
-              ),
         ],
       ),
     );
@@ -278,40 +276,37 @@ class _QuoteCardState extends State<QuoteCard> {
   }
 
   Future<void> _fetchLikeStatus() async {
-    final id = widget.quote['id'] as int;
-    final isLiked = await SupabaseService.isQuoteLiked(id);
-    final count = await SupabaseService.getQuoteLikeCount(id);
+    final id = widget.quote['id'].toString();
+    final status = await ApiService.getQuoteLikeStatus(id);
     if (mounted) {
       setState(() {
-        _isLiked = isLiked;
-        _likeCount = count;
+        _isLiked = status['liked'] ?? false;
+        _likeCount = status['count'] ?? 0;
       });
     }
   }
 
   Future<void> _toggleLike() async {
-    if (widget.quote['id'] == -1) return; // Can't like fallback quotes
+    if (widget.quote['id'] == -1) return;
     if (_isLikeLoading) return;
 
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
+    if (!ApiService.isAuthenticated) {
       _showLoginPrompt();
       return;
     }
 
     setState(() => _isLikeLoading = true);
     try {
-      final id = widget.quote['id'] as int;
-      final newStatus = await SupabaseService.toggleQuoteLike(id);
-      final newCount = await SupabaseService.getQuoteLikeCount(id);
+      final id = widget.quote['id'].toString();
+      final newStatus = await ApiService.toggleQuoteLike(id);
+      final newCount = await ApiService.getQuoteLikeStatus(id);
       if (mounted) {
         setState(() {
           _isLiked = newStatus;
-          _likeCount = newCount;
+          _likeCount = newCount['count'] ?? _likeCount;
         });
       }
     } catch (e) {
-      // Handle error
     } finally {
       if (mounted) setState(() => _isLikeLoading = false);
     }
@@ -322,7 +317,10 @@ class _QuoteCardState extends State<QuoteCard> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Sign In Required', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Sign In Required',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'You need to sign in to like quotes and save them to your favorites.',
           style: TextStyle(color: Colors.white70),
@@ -330,7 +328,10 @@ class _QuoteCardState extends State<QuoteCard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -376,9 +377,9 @@ class _QuoteCardState extends State<QuoteCard> {
                 alignment: Alignment.bottomRight,
                 child: Text(
                   "- ${widget.quote['author']}",
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.white70,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.white70),
                 ),
               ),
               const SizedBox(height: 16),
@@ -398,27 +399,44 @@ class _QuoteCardState extends State<QuoteCard> {
                       const SizedBox(width: 4),
                       Text(
                         '$_likeCount',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.white70,
-                        ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: Colors.white70),
                       ),
                     ],
                   ),
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.copy, size: 20, color: Colors.white70),
+                        icon: const Icon(
+                          Icons.copy,
+                          size: 20,
+                          color: Colors.white70,
+                        ),
                         onPressed: () {
-                          Clipboard.setData(ClipboardData(text: '"${widget.quote['text']}" - ${widget.quote['author']}'));
+                          Clipboard.setData(
+                            ClipboardData(
+                              text:
+                                  '"${widget.quote['text']}" - ${widget.quote['author']}',
+                            ),
+                          );
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Quote copied to clipboard')),
+                            const SnackBar(
+                              content: Text('Quote copied to clipboard'),
+                            ),
                           );
                         },
                       ),
                       IconButton(
-                        icon: const Icon(Icons.share, size: 20, color: Colors.white70),
+                        icon: const Icon(
+                          Icons.share,
+                          size: 20,
+                          color: Colors.white70,
+                        ),
                         onPressed: () {
-                          Share.share('"${widget.quote['text']}" - ${widget.quote['author']}');
+                          Share.share(
+                            '"${widget.quote['text']}" - ${widget.quote['author']}',
+                          );
                         },
                       ),
                     ],

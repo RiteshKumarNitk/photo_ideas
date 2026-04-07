@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../utils/image_downloader.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../auth/screens/login_screen.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../core/models/photo_model.dart';
 import 'magic_camera_screen.dart';
 
@@ -30,8 +29,8 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
   }
 
   Future<void> _fetchLikeStatus() async {
-    final isLiked = await SupabaseService.isImageLiked(widget.photo.url);
-    final count = await SupabaseService.getLikeCount(widget.photo.url);
+    final isLiked = await ApiService.isImageLiked(widget.photo.url);
+    final count = await ApiService.getLikeCount(widget.photo.url);
     if (mounted) {
       setState(() {
         _isLiked = isLiked;
@@ -41,15 +40,14 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
   }
 
   Future<void> _toggleLike() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
+    if (!ApiService.isAuthenticated) {
       _showLoginPrompt();
       return;
     }
 
     try {
-      final newStatus = await SupabaseService.toggleLike(widget.photo.url);
-      final newCount = await SupabaseService.getLikeCount(widget.photo.url);
+      final newStatus = await ApiService.toggleLike(widget.photo.url);
+      final newCount = await ApiService.getLikeCount(widget.photo.url);
       if (mounted) {
         setState(() {
           _isLiked = newStatus;
@@ -58,9 +56,9 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update like')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to update like')));
       }
     }
   }
@@ -70,7 +68,10 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Sign In Required', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Sign In Required',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'You need to sign in to like photos and save them to your favorites.',
           style: TextStyle(color: Colors.white70),
@@ -78,7 +79,10 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -126,17 +130,25 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
           IconButton(
             icon: const Icon(Icons.share, color: Colors.white),
             onPressed: () {
-              Share.share('Check out this photo idea: ${widget.photo.url}\n\nTip: ${widget.photo.posingInstructions}');
+              Share.share(
+                'Check out this photo idea: ${widget.photo.url}\n\nTip: ${widget.photo.posingInstructions}',
+              );
             },
           ),
           IconButton(
             icon: const Icon(Icons.download, color: Colors.white),
             onPressed: () async {
-              final success = await ImageDownloader.downloadImage(widget.photo.url);
+              final success = await ImageDownloader.downloadImage(
+                widget.photo.url,
+              );
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(success ? 'Image saved to gallery' : 'Failed to save image'),
+                    content: Text(
+                      success
+                          ? 'Image saved to gallery'
+                          : 'Failed to save image',
+                    ),
                     backgroundColor: success ? Colors.green : Colors.red,
                   ),
                 );
@@ -151,7 +163,9 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
             imageProvider: NetworkImage(widget.photo.url),
             minScale: PhotoViewComputedScale.contained,
             maxScale: PhotoViewComputedScale.covered * 2,
-            heroAttributes: PhotoViewHeroAttributes(tag: widget.heroTag ?? widget.photo.url),
+            heroAttributes: PhotoViewHeroAttributes(
+              tag: widget.heroTag ?? widget.photo.url,
+            ),
           ),
           Positioned(
             bottom: 30,
@@ -184,12 +198,21 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
                             ),
                           ),
                           Container(
-                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                             decoration: BoxDecoration(
-                               color: Colors.white.withOpacity(0.2),
-                               borderRadius: BorderRadius.circular(20),
-                             ),
-                             child: const Text("AI Tip", style: TextStyle(color: Colors.white, fontSize: 12)),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              "AI Tip",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -207,12 +230,13 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
                         width: double.infinity,
                         child: ElevatedButton.icon(
                           onPressed: () {
-                             Navigator.push(
-                               context,
-                               MaterialPageRoute(
-                                 builder: (context) => MagicCameraScreen(photo: widget.photo),
-                               ),
-                             );
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    MagicCameraScreen(photo: widget.photo),
+                              ),
+                            );
                           },
                           icon: const Icon(Icons.camera_enhance),
                           label: const Text("Try with Magic Camera"),

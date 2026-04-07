@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 
 class AdminEditImageScreen extends StatefulWidget {
   final Map<String, dynamic> imageData;
@@ -40,13 +40,18 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.imageData['title'] ?? '');
-    _subtitleController = TextEditingController(text: widget.imageData['subtitle'] ?? '');
-    _posingInstructionsController = TextEditingController(text: widget.imageData['posing_instructions'] ?? '');
-    _selectedCategory = widget.imageData['category'];
-    _selectedSubCategory = widget.imageData['sub_category'];
-    
-    // Ensure selected category is in the list, otherwise add it or default
+    _titleController = TextEditingController(
+      text: widget.imageData['title']?.toString() ?? '',
+    );
+    _subtitleController = TextEditingController(
+      text: widget.imageData['subtitle']?.toString() ?? '',
+    );
+    _posingInstructionsController = TextEditingController(
+      text: widget.imageData['posing_instructions']?.toString() ?? '',
+    );
+    _selectedCategory = widget.imageData['category']?.toString();
+    _selectedSubCategory = widget.imageData['sub_category']?.toString();
+
     if (_selectedCategory != null && !_categories.contains(_selectedCategory)) {
       _categories.add(_selectedCategory!);
     }
@@ -58,28 +63,35 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await Supabase.instance.client
-          .from('images')
-          .update({
-            'title': _titleController.text.trim(),
-            'subtitle': _subtitleController.text.trim(),
-            'posing_instructions': _posingInstructionsController.text.trim(),
-            'category': _selectedCategory,
-            'sub_category': _selectedSubCategory,
-          })
-          .eq('id', widget.imageData['id']);
+      final id = widget.imageData['id'];
+      if (id == null) {
+        throw Exception('Image ID not found');
+      }
+
+      final success = await ApiService.updatePhoto(
+        id: id.toString(),
+        title: _titleController.text.trim(),
+        description: _subtitleController.text.trim(),
+        posingInstructions: _posingInstructionsController.text.trim(),
+      );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Image updated successfully!')),
-        );
-        Navigator.pop(context, true); // Return true to indicate update
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Image updated successfully!')),
+          );
+          Navigator.pop(context, true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to update image')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating image: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating image: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -89,9 +101,7 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Image Details'),
-      ),
+      appBar: AppBar(title: const Text('Edit Image Details')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -101,10 +111,15 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  widget.imageData['url'],
+                  widget.imageData['url']?.toString() ?? '',
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 200,
+                    color: Colors.grey[300],
+                    child: const Center(child: Icon(Icons.error)),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -156,10 +171,12 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
                   prefixIcon: Icon(Icons.category),
                 ),
                 items: _categories
-                    .map((category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        ))
+                    .map(
+                      (category) => DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      ),
+                    )
                     .toList(),
                 onChanged: (value) {
                   setState(() {
@@ -175,7 +192,8 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              if (_selectedCategory != null && _subCategories.containsKey(_selectedCategory))
+              if (_selectedCategory != null &&
+                  _subCategories.containsKey(_selectedCategory))
                 DropdownButtonFormField<String>(
                   value: _selectedSubCategory,
                   decoration: const InputDecoration(
@@ -184,21 +202,14 @@ class _AdminEditImageScreenState extends State<AdminEditImageScreen> {
                     prefixIcon: Icon(Icons.subdirectory_arrow_right),
                   ),
                   items: _subCategories[_selectedCategory]!
-                      .map((sub) => DropdownMenuItem(
-                            value: sub,
-                            child: Text(sub),
-                          ))
+                      .map(
+                        (sub) => DropdownMenuItem(value: sub, child: Text(sub)),
+                      )
                       .toList(),
                   onChanged: (value) {
                     setState(() {
                       _selectedSubCategory = value;
                     });
-                  },
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please select a sub-category';
-                    }
-                    return null;
                   },
                 ),
               const SizedBox(height: 32),

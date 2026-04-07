@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/services/supabase_service.dart';
+import '../../../core/services/api_service.dart';
 
 class AdminCategoryScreen extends StatefulWidget {
   const AdminCategoryScreen({super.key});
@@ -21,17 +21,21 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen> {
 
   Future<void> _loadCategories() async {
     setState(() => _isLoading = true);
-    final categories = await SupabaseService.getCategories();
-    setState(() {
-      _categories = categories;
-      _isLoading = false;
-    });
+    try {
+      final categories = await ApiService.getCategories();
+      setState(() {
+        _categories = categories;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _addCategory() async {
     if (_categoryController.text.trim().isEmpty) return;
     try {
-      await SupabaseService.addCategory(_categoryController.text.trim());
+      await ApiService.addCategory(_categoryController.text.trim());
       _categoryController.clear();
       _loadCategories();
       if (mounted) {
@@ -41,22 +45,22 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding category: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error adding category: $e')));
       }
     }
   }
 
-  Future<void> _deleteCategory(int id) async {
-     try {
-      await SupabaseService.deleteCategory(id);
+  Future<void> _deleteCategory(String id) async {
+    try {
+      await ApiService.deleteCategory(id);
       _loadCategories();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text('Error deleting category: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting category: $e')));
       }
     }
   }
@@ -96,9 +100,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Categories'),
-      ),
+      appBar: AppBar(title: const Text('Manage Categories')),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddCategoryDialog,
         child: const Icon(Icons.add),
@@ -111,7 +113,7 @@ class _AdminCategoryScreenState extends State<AdminCategoryScreen> {
                 final category = _categories[index];
                 return CategoryTile(
                   category: category,
-                  onDelete: () => _deleteCategory(category['id']),
+                  onDelete: () => _deleteCategory(category['id'].toString()),
                 );
               },
             ),
@@ -141,33 +143,42 @@ class _CategoryTileState extends State<CategoryTile> {
 
   Future<void> _loadSubCategories() async {
     setState(() => _isLoadingSub = true);
-    final subCategories = await SupabaseService.getSubCategories(widget.category['id']);
-    if (mounted) {
-      setState(() {
-        _subCategories = subCategories;
-        _isLoadingSub = false;
-      });
+    try {
+      final subCategories = await ApiService.getSubCategories(
+        widget.category['id'].toString(),
+      );
+      if (mounted) {
+        setState(() {
+          _subCategories = subCategories;
+          _isLoadingSub = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingSub = false);
     }
   }
 
   Future<void> _addSubCategory() async {
     if (_subCategoryController.text.trim().isEmpty) return;
     try {
-      await SupabaseService.addSubCategory(widget.category['id'], _subCategoryController.text.trim());
+      await ApiService.addSubCategory(
+        widget.category['id'].toString(),
+        _subCategoryController.text.trim(),
+      );
       _subCategoryController.clear();
       _loadSubCategories();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding subcategory: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error adding subcategory: $e')));
       }
     }
   }
 
-  Future<void> _deleteSubCategory(int id) async {
+  Future<void> _deleteSubCategory(String id) async {
     try {
-      await SupabaseService.deleteSubCategory(id);
+      await ApiService.deleteSubCategory(id);
       _loadSubCategories();
     } catch (e) {
       if (mounted) {
@@ -213,7 +224,7 @@ class _CategoryTileState extends State<CategoryTile> {
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
-      title: Text(widget.category['name']),
+      title: Text(widget.category['name'].toString()),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -246,14 +257,20 @@ class _CategoryTileState extends State<CategoryTile> {
             child: Text('No subcategories yet.'),
           )
         else
-          ..._subCategories.map((sub) => ListTile(
-                title: Text(sub['name']),
-                contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete, size: 20, color: Colors.redAccent),
-                  onPressed: () => _deleteSubCategory(sub['id']),
+          ..._subCategories.map(
+            (sub) => ListTile(
+              title: Text(sub['name'].toString()),
+              contentPadding: const EdgeInsets.only(left: 32, right: 16),
+              trailing: IconButton(
+                icon: const Icon(
+                  Icons.delete,
+                  size: 20,
+                  color: Colors.redAccent,
                 ),
-              )),
+                onPressed: () => _deleteSubCategory(sub['id'].toString()),
+              ),
+            ),
+          ),
       ],
     );
   }

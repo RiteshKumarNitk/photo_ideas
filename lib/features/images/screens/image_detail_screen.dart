@@ -1,9 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/services/api_service.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../../core/models/photo_model.dart';
-import '../../../core/services/supabase_service.dart';
 import '../../../utils/image_downloader.dart';
 import 'fullscreen_image_viewer.dart';
 import 'magic_camera_screen.dart';
@@ -29,8 +28,8 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
   }
 
   Future<void> _fetchLikeStatus() async {
-    final isLiked = await SupabaseService.isImageLiked(widget.photo.url);
-    final count = await SupabaseService.getLikeCount(widget.photo.url);
+    final isLiked = await ApiService.isImageLiked(widget.photo.url);
+    final count = await ApiService.getLikeCount(widget.photo.url);
     if (mounted) {
       setState(() {
         _isLiked = isLiked;
@@ -40,24 +39,21 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
   }
 
   Future<void> _toggleLike() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
+    if (!ApiService.isAuthenticated) {
       _showLoginPrompt();
       return;
     }
 
     try {
-      final newStatus = await SupabaseService.toggleLike(widget.photo.url);
-      final newCount = await SupabaseService.getLikeCount(widget.photo.url);
+      final newStatus = await ApiService.toggleLike(widget.photo.url);
+      final newCount = await ApiService.getLikeCount(widget.photo.url);
       if (mounted) {
         setState(() {
           _isLiked = newStatus;
           _likeCount = newCount;
         });
       }
-    } catch (e) {
-      // Handle error
-    }
+    } catch (e) {}
   }
 
   void _showLoginPrompt() {
@@ -65,7 +61,10 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Sign In Required', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Sign In Required',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'You need to sign in to like photos and save them to your favorites.',
           style: TextStyle(color: Colors.white70),
@@ -73,7 +72,10 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -108,26 +110,21 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
                 children: [
                   GestureDetector(
                     onTap: () {
-                       // Navigate to Fullscreen Zoom
-                       Navigator.push(
-                         context,
-                         MaterialPageRoute(
-                           builder: (context) => FullscreenImageViewer(
-                             photo: widget.photo,
-                             heroTag: widget.heroTag,
-                           ),
-                         ),
-                       );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => FullscreenImageViewer(
+                            photo: widget.photo,
+                            heroTag: widget.heroTag,
+                          ),
+                        ),
+                      );
                     },
                     child: Hero(
                       tag: widget.heroTag ?? widget.photo.url,
-                      child: Image.network(
-                        widget.photo.url,
-                        fit: BoxFit.cover,
-                      ),
+                      child: Image.network(widget.photo.url, fit: BoxFit.cover),
                     ),
                   ),
-                  // Gradient Overlay for Text Visibility
                   Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -141,7 +138,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
                       ),
                     ),
                   ),
-                   Positioned(
+                  Positioned(
                     bottom: 20,
                     right: 20,
                     child: FloatingActionButton(
@@ -149,17 +146,20 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
                       mini: true,
                       backgroundColor: Colors.white.withOpacity(0.2),
                       onPressed: () {
-                         Navigator.push(
-                         context,
-                         MaterialPageRoute(
-                           builder: (context) => FullscreenImageViewer(
-                             photo: widget.photo,
-                             heroTag: widget.heroTag,
-                           ),
-                         ),
-                       );
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FullscreenImageViewer(
+                              photo: widget.photo,
+                              heroTag: widget.heroTag,
+                            ),
+                          ),
+                        );
                       },
-                      child: const Icon(Icons.zoom_out_map, color: Colors.white),
+                      child: const Icon(
+                        Icons.zoom_out_map,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ],
@@ -180,10 +180,16 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
               IconButton(
                 icon: const Icon(Icons.download_rounded, color: Colors.white),
                 onPressed: () async {
-                   final success = await ImageDownloader.downloadImage(widget.photo.url);
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(success ? "Downloaded" : "Failed")));
-                    }
+                  final success = await ImageDownloader.downloadImage(
+                    widget.photo.url,
+                  );
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(success ? "Downloaded" : "Failed"),
+                      ),
+                    );
+                  }
                 },
               ),
             ],
@@ -194,7 +200,6 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title & Metadata
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -213,20 +218,37 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Icon(Icons.favorite, color: Colors.redAccent, size: 16),
+                                const Icon(
+                                  Icons.favorite,
+                                  color: Colors.redAccent,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   "$_likeCount Likes",
-                                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
                                 ),
                                 const SizedBox(width: 16),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.white.withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
-                                  child: const Text("PRO TIP", style: TextStyle(color: Colors.amber, fontSize: 10, fontWeight: FontWeight.bold)),
+                                  child: const Text(
+                                    "PRO TIP",
+                                    style: TextStyle(
+                                      color: Colors.amber,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -236,8 +258,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 32),
-                  
-                  // Content Card
+
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -250,7 +271,10 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.lightbulb_outline, color: Colors.yellowAccent.withOpacity(0.8)),
+                            Icon(
+                              Icons.lightbulb_outline,
+                              color: Colors.yellowAccent.withOpacity(0.8),
+                            ),
                             const SizedBox(width: 12),
                             const Text(
                               "Posing & Lighting",
@@ -275,7 +299,7 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 100), // Space for FAB
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
@@ -290,15 +314,19 @@ class _ImageDetailScreenState extends State<ImageDetailScreen> {
           height: 60,
           child: FloatingActionButton.extended(
             onPressed: () {
-               Navigator.push(
+              Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => MagicCameraScreen(photo: widget.photo)),
+                MaterialPageRoute(
+                  builder: (context) => MagicCameraScreen(photo: widget.photo),
+                ),
               );
             },
             backgroundColor: Colors.white,
             foregroundColor: Colors.black,
             elevation: 8,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(30),
+            ),
             icon: const Icon(Icons.camera_alt),
             label: const Text(
               "Try Magic Camera",

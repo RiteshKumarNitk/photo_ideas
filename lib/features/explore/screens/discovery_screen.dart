@@ -1,9 +1,8 @@
 import 'package:appinio_swiper/appinio_swiper.dart';
 import 'package:flutter/material.dart';
 import '../../../core/models/photo_model.dart';
-import '../../../core/services/supabase_service.dart';
+import '../../../core/services/api_service.dart';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../auth/screens/login_screen.dart';
 import 'dart:ui';
 
@@ -26,20 +25,17 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   }
 
   Future<void> _fetchPhotos() async {
-    // In a real app, we would fetch random images or personalized recommendations
-    // For now, we'll fetch a mix of categories
     try {
-      final haircut = await SupabaseService.getImagesByCategory("Haircut Ideas");
-      final wedding = await SupabaseService.getImagesByCategory("Wedding Photos");
-      final nature = await SupabaseService.getImagesByCategory("Nature");
-      
-      final allUrls = [...haircut, ...wedding, ...nature]..shuffle();
-      
-      final photos = allUrls.take(20).map((url) => PhotoModel(
-        url: url,
-        category: "Discovery",
-        posingInstructions: "Swipe right if you love this style!",
-      )).toList();
+      final haircut = await ApiService.getImagesByCategory("Haircut Ideas");
+      final wedding = await ApiService.getImagesByCategory("Wedding Photos");
+      final nature = await ApiService.getImagesByCategory("Nature");
+
+      final allImages = [...haircut, ...wedding, ...nature]..shuffle();
+
+      final photos = allImages
+          .take(20)
+          .map((item) => PhotoModel.fromJson(item))
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -61,10 +57,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   }
 
   Future<void> _saveToFavorites(PhotoModel photo) async {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) return; // Don't save for guests on swipe
+    if (!ApiService.isAuthenticated) return;
 
-    await SupabaseService.toggleLike(photo.url);
+    await ApiService.toggleLike(photo.url);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -77,8 +72,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   }
 
   void _handleLikeAction() {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user == null) {
+    if (!ApiService.isAuthenticated) {
       _showLoginPrompt();
     } else {
       _swiperController.swipeRight();
@@ -90,7 +84,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Sign In Required', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Sign In Required',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'You need to sign in to save your likes.',
           style: TextStyle(color: Colors.white70),
@@ -98,7 +95,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           ElevatedButton(
             onPressed: () {
@@ -119,11 +119,18 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
     }
 
     if (_photos.isEmpty) {
-      return const Center(child: Text("No more ideas to discover!", style: TextStyle(color: Colors.white)));
+      return const Center(
+        child: Text(
+          "No more ideas to discover!",
+          style: TextStyle(color: Colors.white),
+        ),
+      );
     }
 
     return Scaffold(
@@ -141,26 +148,25 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               controller: _swiperController,
               cardCount: _photos.length,
               onSwipeEnd: _onSwipe,
-              cardBuilder: (context, index) { 
-                 // ... existing cardBuilder code
-                 final photo = _photos[index];
-                 return ClipRRect(
+              cardBuilder: (context, index) {
+                final photo = _photos[index];
+                return ClipRRect(
                   borderRadius: BorderRadius.circular(20),
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      Image.network(
-                        photo.url,
-                        fit: BoxFit.cover,
-                      ),
+                      Image.network(photo.url, fit: BoxFit.cover),
                       Container(
-                         decoration: BoxDecoration(
-                           gradient: LinearGradient(
-                             begin: Alignment.topCenter,
-                             end: Alignment.bottomCenter,
-                             colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
-                           ),
-                         ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.8),
+                            ],
+                          ),
+                        ),
                       ),
                       Positioned(
                         bottom: 40,
@@ -169,15 +175,22 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                             Text(
-                               photo.category,
-                               style: const TextStyle(color: Colors.white, fontSize: 14),
-                             ),
-                             const SizedBox(height: 8),
-                             const Text(
-                               "Swipe Right to Save",
-                               style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
-                             ),
+                            Text(
+                              photo.category,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              "Swipe Right to Save",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -192,13 +205,21 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildActionButton(Icons.close, Colors.red, () => _swiperController.swipeLeft()),
+                _buildActionButton(
+                  Icons.close,
+                  Colors.red,
+                  () => _swiperController.swipeLeft(),
+                ),
                 _buildActionButton(Icons.info_outline, Colors.blue, () {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     const SnackBar(content: Text("Swipe right to save!")),
-                   );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Swipe right to save!")),
+                  );
                 }),
-                _buildActionButton(Icons.favorite, Colors.green, _handleLikeAction),
+                _buildActionButton(
+                  Icons.favorite,
+                  Colors.green,
+                  _handleLikeAction,
+                ),
               ],
             ),
           ),
