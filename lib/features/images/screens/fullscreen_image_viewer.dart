@@ -4,8 +4,11 @@ import 'package:photo_view/photo_view.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../utils/image_downloader.dart';
 import '../../../core/services/api_service.dart';
+import '../../../core/services/share_service.dart';
+import '../../../core/services/haptic_service.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../../core/models/photo_model.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'magic_camera_screen.dart';
 
 class FullscreenImageViewer extends StatefulWidget {
@@ -21,6 +24,7 @@ class FullscreenImageViewer extends StatefulWidget {
 class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
   bool _isLiked = false;
   int _likeCount = 0;
+  final GlobalKey _shareKey = GlobalKey();
 
   @override
   void initState() {
@@ -46,6 +50,7 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
     }
 
     try {
+      HapticService.medium();
       final newStatus = await ApiService.toggleLike(widget.photo.url);
       final newCount = await ApiService.getLikeCount(widget.photo.url);
       if (mounted) {
@@ -53,8 +58,12 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
           _isLiked = newStatus;
           _likeCount = newCount;
         });
+        if (newStatus) {
+           HapticService.success();
+        }
       }
     } catch (e) {
+      HapticService.error();
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -129,9 +138,11 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
           ),
           IconButton(
             icon: const Icon(Icons.share, color: Colors.white),
-            onPressed: () {
-              Share.share(
-                'Check out this photo idea: ${widget.photo.url}\n\nTip: ${widget.photo.posingInstructions}',
+            onPressed: () async {
+              HapticService.light();
+              await ShareService.shareWidget(
+                _shareKey,
+                'Check out this photo idea on SnapIdeas: ${widget.photo.posingInstructions}',
               );
             },
           ),
@@ -252,6 +263,94 @@ class _FullscreenImageViewerState extends State<FullscreenImageViewer> {
                       ),
                     ],
                   ),
+                ),
+              ),
+            ),
+          ),
+          
+          // Hidden Share Card Widget
+          Positioned(
+            left: -2000, // Off-screen
+            child: RepaintBoundary(
+              key: _shareKey,
+              child: Container(
+                width: 1080,
+                height: 1920,
+                color: Colors.black,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Image.network(
+                        widget.photo.url,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.9),
+                            ],
+                            stops: const [0.6, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 80,
+                      left: 60,
+                      right: 60,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  'SnapIdeas',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 80,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: -2,
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  widget.photo.posingInstructions,
+                                  maxLines: 3,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.8),
+                                    fontSize: 36,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 40),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: QrImageView(
+                              data: 'https://snapideas.app/p/${widget.photo.url.split('/').last}?ref=${ApiService.referralCode}',
+                              version: QrVersions.auto,
+                              size: 180.0,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

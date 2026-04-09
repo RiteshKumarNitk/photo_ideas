@@ -183,21 +183,42 @@ class _CategoryGridScreenState extends State<CategoryGridScreen> {
                             },
                             child: Hero(
                               tag: heroTag,
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: CachedNetworkImage(
-                                  imageUrl: photo.url,
-                                  placeholder: (context, url) => Shimmer.fromColors(
-                                    baseColor: Colors.grey[800]!,
-                                    highlightColor: Colors.grey[700]!,
-                                    child: Container(
-                                      color: Colors.grey[800],
-                                      height: (index % 2 == 0) ? 200 : 300,
+                              child: Stack(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: CachedNetworkImage(
+                                      imageUrl: photo.url,
+                                      placeholder: (context, url) => Shimmer.fromColors(
+                                        baseColor: Colors.grey[800]!,
+                                        highlightColor: Colors.grey[700]!,
+                                        child: Container(
+                                          color: Colors.grey[800],
+                                          height: (index % 2 == 0) ? 200 : 300,
+                                        ),
+                                      ),
+                                      errorWidget: (context, url, error) => const Icon(Icons.error),
+                                      fit: BoxFit.cover,
                                     ),
                                   ),
-                                  errorWidget: (context, url, error) => const Icon(Icons.error),
-                                  fit: BoxFit.cover,
-                                ),
+                                  if (index % 5 == 0) // Simulate premium content
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.lock,
+                                          color: Colors.amber,
+                                          size: 16,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           );

@@ -18,6 +18,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _referralController = TextEditingController();
 
   bool _isLoading = false;
 
@@ -27,6 +28,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _referralController.dispose();
     super.dispose();
   }
 
@@ -44,6 +46,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         _emailController.text.trim(),
         _passwordController.text.trim(),
         _nameController.text.trim(),
+        referringCode: _referralController.text.trim().isEmpty ? null : _referralController.text.trim(),
       );
 
       if (success && mounted) {
@@ -182,6 +185,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                   return 'Passwords do not match';
                                 return null;
                               },
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _referralController,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: _inputDecoration(
+                                "Referral Code (Optional)",
+                                Icons.card_giftcard,
+                              ),
                             ),
 
                             const SizedBox(height: 24),

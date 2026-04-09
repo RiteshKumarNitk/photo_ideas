@@ -6,6 +6,7 @@ import '../../favorites/screens/favorites_screen.dart';
 import 'help_support_screen.dart';
 import 'edit_profile_screen.dart';
 import '../../admin/screens/admin_dashboard_screen.dart';
+import 'referral_screen.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../../core/widgets/scale_button.dart';
 
@@ -236,6 +237,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (result == true) {
                   setState(() {});
                 }
+              },
+            ),
+            _buildGlassProfileOption(
+              context,
+              Icons.card_giftcard,
+              "Referrals & Rewards",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ReferralScreen(),
+                  ),
+                );
               },
             ),
             _buildGlassProfileOption(

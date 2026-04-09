@@ -25,6 +25,10 @@ class ApiService {
         await logout();
       } else {
         _currentUser = JwtDecoder.decode(_token!);
+        final fullUser = await getCurrentUser();
+        if (fullUser != null) {
+          _currentUser = fullUser;
+        }
       }
     }
   }
@@ -77,8 +81,9 @@ class ApiService {
   static Future<bool> signup(
     String email,
     String password,
-    String username,
-  ) async {
+    String username, {
+    String? referringCode,
+  }) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/auth/signup'),
@@ -87,6 +92,7 @@ class ApiService {
           'email': email,
           'password': password,
           'username': username,
+          if (referringCode != null) 'referringCode': referringCode,
         }),
       );
 
@@ -749,6 +755,46 @@ class ApiService {
     } catch (e) {
       debugPrint('Error deleting file: $e');
       return false;
+    }
+  }
+
+  // --- Referral System ---
+
+  static String get referralCode => _currentUser?['referralCode'] ?? '';
+  static int get points => _currentUser?['points'] ?? 0;
+
+  static Future<bool> applyReferralCode(String code) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/referral/apply'),
+        headers: await _getHeaders(),
+        body: jsonEncode({'referralCode': code}),
+      );
+      if (response.statusCode == 200) {
+        // Refresh local user data
+        await getCurrentUser();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('Error applying referral code: $e');
+      return false;
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> getReferralRewards() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/auth/referral/rewards'),
+        headers: await _getHeaders(),
+      );
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error getting referral rewards: $e');
+      return [];
     }
   }
 }
