@@ -55,6 +55,9 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
   bool _smartCompositionEnabled = false;
   bool _backgroundReplacementEnabled = false;
   bool _styleTransferEnabled = false;
+  bool _mirrorFrontCamera = true; // Added missing variable
+  bool _isGridMode = false; // Added missing variable
+
 
   // Background Replacement
   int _selectedBackgroundIndex = 0;
@@ -1611,8 +1614,13 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
       {'id': 'coach', 'icon': Icons.psychology_outlined, 'label': 'AI COACH', 'active': _aiCoachEnabled},
       {'id': 'smart', 'icon': Icons.grid_3x3_rounded, 'label': 'SMART', 'active': _smartCompositionEnabled},
       {'id': 'face', 'icon': Icons.face_retouching_natural, 'label': 'FACE FX', 'active': _isFaceFilterActive},
+      {'id': 'object', 'icon': Icons.category_rounded, 'label': 'OBJECT AI', 'active': _objectDetectionEnabled},
+      {'id': 'scene', 'icon': Icons.landscape_rounded, 'label': 'SCENE AI', 'active': _sceneRecognitionEnabled},
+      {'id': 'mirror', 'icon': Icons.flip_rounded, 'label': 'MIRROR', 'active': _mirrorFrontCamera},
+      {'id': 'gestures', 'icon': Icons.back_hand_rounded, 'label': 'GESTURE', 'active': _handGestureEnabled},
+      {'id': 'bg', 'icon': Icons.wallpaper_rounded, 'label': 'BG REPLACE', 'active': _backgroundReplacementEnabled},
+      {'id': 'style', 'icon': Icons.palette_rounded, 'label': 'STYLE FX', 'active': _styleTransferEnabled},
       {'id': 'level', 'icon': Icons.line_weight_rounded, 'label': 'LEVELER', 'active': _isLevelerActive},
-      {'id': 'gesture', 'icon': Icons.back_hand_rounded, 'label': 'GESTURE', 'active': _handGestureEnabled},
     ];
 
     return SingleChildScrollView(
@@ -1630,17 +1638,22 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                     case 'coach': _aiCoachEnabled = !_aiCoachEnabled; break;
                     case 'smart': _smartCompositionEnabled = !_smartCompositionEnabled; break;
                     case 'face': _isFaceFilterActive = !_isFaceFilterActive; break;
-                    case 'level': _toggleLeveler(); break;
-                    case 'gesture': _handGestureEnabled = !_handGestureEnabled; break;
+                    case 'object': _objectDetectionEnabled = !_objectDetectionEnabled; break;
+                    case 'scene': _sceneRecognitionEnabled = !_sceneRecognitionEnabled; break;
+                    case 'mirror': _mirrorFrontCamera = !_mirrorFrontCamera; break;
+                    case 'gestures': _handGestureEnabled = !_handGestureEnabled; break;
+                    case 'bg': _backgroundReplacementEnabled = !_backgroundReplacementEnabled; break;
+                    case 'style': _styleTransferEnabled = !_styleTransferEnabled; break;
+                    case 'level': _isLevelerActive = !_isLevelerActive; break;
                   }
                 });
               },
               child: AnimatedContainer(
                 duration: 300.ms,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: isActive ? Colors.amber.withOpacity(0.15) : Colors.white10,
-                  borderRadius: BorderRadius.circular(20),
+                  color: isActive ? Colors.amber.withOpacity(0.2) : Colors.white10,
+                  borderRadius: BorderRadius.circular(25),
                   border: Border.all(
                     color: isActive ? Colors.amber.withOpacity(0.5) : Colors.white10,
                   ),
@@ -1650,14 +1663,14 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
                     Icon(
                       mode['icon'] as IconData,
                       color: isActive ? Colors.amber : Colors.white70,
-                      size: 18,
+                      size: 20,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       mode['label'] as String,
                       style: GoogleFonts.outfit(
                         color: isActive ? Colors.amber : Colors.white70,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.5,
                       ),
@@ -1687,22 +1700,39 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
   }
 
   Widget _buildOverlayView() {
+    final size = MediaQuery.of(context).size;
+    final deviceRatio = size.width / size.height;
+    
     return GestureDetector(
       onScaleStart: _handleScaleStart,
       onScaleUpdate: _handleScaleUpdate,
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Camera Preview forced to cover
-          Transform.scale(
-            scale: _calculateCoverScale(),
-            child: Center(
-              child: AspectRatio(
-                aspectRatio: _aspectRatios[_currentAspectRatioIndex],
-                child: CameraPreview(_controller!),
+          // Camera Preview forced to cover without squishing
+          Center(
+            child: ClipRect(
+              child: SizedBox(
+                width: size.width,
+                height: size.height,
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: Matrix4.rotationY((_mirrorFrontCamera && _cameras[_selectedCameraIndex].lensDirection == CameraLensDirection.front) ? 3.14159 : 0),
+                    child: SizedBox(
+                      width: size.width,
+                      height: size.width / _controller!.value.aspectRatio,
+                      child: CameraPreview(_controller!),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
+
+          // Aspect Ratio Overlay Mask
+          _buildAspectRatioMask(),
 
           // Background replacement layer
           if (_backgroundReplacementEnabled && _backgroundImageData != null)
@@ -1725,6 +1755,41 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAspectRatioMask() {
+    final currentRatio = _aspectRatios[_currentAspectRatioIndex];
+    if (currentRatio == 9 / 16) return const SizedBox.shrink(); // Full screen, no mask needed
+
+    return IgnorePointer(
+      child: ColorFiltered(
+        colorFilter: ColorFilter.mode(
+          Colors.black.withOpacity(0.5),
+          BlendMode.srcOut,
+        ),
+        child: Stack(
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                color: Colors.black,
+                backgroundBlendMode: BlendMode.dstOut,
+              ),
+            ),
+            Center(
+              child: AspectRatio(
+                aspectRatio: currentRatio,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
