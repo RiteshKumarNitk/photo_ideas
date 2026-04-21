@@ -9,6 +9,9 @@ import 'help_support_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_of_service_screen.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -72,7 +75,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text("Settings", style: TextStyle(color: Colors.white)),
+        title: Text(
+          "Settings",
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -96,138 +102,144 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListView(
             padding: const EdgeInsets.fromLTRB(16, 100, 16, 16),
             children: [
-              if (!isGuest) ...[
-                _buildSectionHeader(context, "Account"),
+              ...[
+                if (!isGuest) ...[
+                  _buildSectionHeader(context, "Account"),
+                  _buildGlassSettingsTile(
+                    context,
+                    icon: Icons.person_outline,
+                    title: "Edit Profile",
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const EditProfileScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                ],
+                _buildSectionHeader(context, "Appearance"),
+                _buildGlassSwitchTile(
+                  context,
+                  icon: themeProvider.isDarkMode
+                      ? Icons.dark_mode
+                      : Icons.light_mode,
+                  title: "Dark Mode",
+                  value: themeProvider.isDarkMode,
+                  onChanged: (value) {
+                    themeProvider.toggleTheme(value);
+                  },
+                ),
+                const SizedBox(height: 24),
+                _buildSectionHeader(context, "Notifications"),
+                _buildGlassSwitchTile(
+                  context,
+                  icon: _notificationsEnabled
+                      ? Icons.notifications_active
+                      : Icons.notifications_off,
+                  title: "Push Notifications",
+                  value: _notificationsEnabled,
+                  onChanged: (value) {
+                    setState(() {
+                      _notificationsEnabled = value;
+                    });
+                  },
+                ),
+                const SizedBox(height: 24),
+                _buildSectionHeader(context, "Support & About"),
                 _buildGlassSettingsTile(
                   context,
-                  icon: Icons.person_outline,
-                  title: "Edit Profile",
+                  icon: Icons.help_outline,
+                  title: "Help & Support",
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const EditProfileScreen(),
+                        builder: (context) => const HelpSupportScreen(),
                       ),
                     );
                   },
                 ),
-                const SizedBox(height: 24),
-              ],
-              _buildSectionHeader(context, "Appearance"),
-              _buildGlassSwitchTile(
-                context,
-                icon: themeProvider.isDarkMode
-                    ? Icons.dark_mode
-                    : Icons.light_mode,
-                title: "Dark Mode",
-                value: themeProvider.isDarkMode,
-                onChanged: (value) {
-                  themeProvider.toggleTheme(value);
-                },
-              ),
-              const SizedBox(height: 24),
-              _buildSectionHeader(context, "Notifications"),
-              _buildGlassSwitchTile(
-                context,
-                icon: _notificationsEnabled
-                    ? Icons.notifications_active
-                    : Icons.notifications_off,
-                title: "Push Notifications",
-                value: _notificationsEnabled,
-                onChanged: (value) {
-                  setState(() {
-                    _notificationsEnabled = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 24),
-              _buildSectionHeader(context, "Support & About"),
-              _buildGlassSettingsTile(
-                context,
-                icon: Icons.help_outline,
-                title: "Help & Support",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const HelpSupportScreen(),
-                    ),
-                  );
-                },
-              ),
-              _buildGlassSettingsTile(
-                context,
-                icon: Icons.privacy_tip_outlined,
-                title: "Privacy Policy",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const PrivacyPolicyScreen(),
-                    ),
-                  );
-                },
-              ),
-              _buildGlassSettingsTile(
-                context,
-                icon: Icons.description_outlined,
-                title: "Terms of Service",
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const TermsOfServiceScreen(),
-                    ),
-                  );
-                },
-              ),
-              _buildGlassSettingsTile(
-                context,
-                icon: Icons.share,
-                title: "Share App",
-                onTap: () {
-                  Share.share('Check out this amazing Photo Ideas App!');
-                },
-              ),
-              _buildGlassInfoTile(
-                context,
-                icon: Icons.info_outline,
-                title: "App Version",
-                trailing: "1.0.0",
-              ),
-              const SizedBox(height: 24),
-              if (isGuest)
                 _buildGlassSettingsTile(
                   context,
-                  icon: Icons.login,
-                  title: "Sign In",
+                  icon: Icons.privacy_tip_outlined,
+                  title: "Privacy Policy",
                   onTap: () {
-                    Navigator.pushAndRemoveUntil(
+                    Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const LoginScreen(),
+                        builder: (context) => const PrivacyPolicyScreen(),
                       ),
-                      (route) => false,
                     );
                   },
-                )
-              else ...[
+                ),
                 _buildGlassSettingsTile(
                   context,
-                  icon: Icons.logout,
-                  title: "Logout",
-                  isDestructive: true,
-                  onTap: () => _logout(context),
+                  icon: Icons.description_outlined,
+                  title: "Terms of Service",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TermsOfServiceScreen(),
+                      ),
+                    );
+                  },
                 ),
-                if (!isAdmin)
+                _buildGlassSettingsTile(
+                  context,
+                  icon: Icons.share,
+                  title: "Share App",
+                  onTap: () {
+                    Share.share('Check out this amazing Photo Ideas App!');
+                  },
+                ),
+                _buildGlassInfoTile(
+                  context,
+                  icon: Icons.info_outline,
+                  title: "App Version",
+                  trailing: "4.0.0",
+                ),
+                const SizedBox(height: 24),
+                if (isGuest)
                   _buildGlassSettingsTile(
                     context,
-                    icon: Icons.delete_forever,
-                    title: "Delete Account",
+                    icon: Icons.login,
+                    title: "Sign In",
+                    onTap: () {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                        (route) => false,
+                      );
+                    },
+                  )
+                else ...[
+                  _buildGlassSettingsTile(
+                    context,
+                    icon: Icons.logout,
+                    title: "Logout",
                     isDestructive: true,
-                    onTap: () => _deleteAccount(context),
+                    onTap: () => _logout(context),
                   ),
-              ],
+                  if (!isAdmin)
+                    _buildGlassSettingsTile(
+                      context,
+                      icon: Icons.delete_forever,
+                      title: "Delete Account",
+                      isDestructive: true,
+                      onTap: () => _deleteAccount(context),
+                    ),
+                ],
+              ].indexed.map((entry) {
+                int index = entry.$1;
+                Widget tile = entry.$2;
+                return tile.animate(delay: (100 * index).ms).fadeIn().slideX(begin: 0.1, end: 0);
+              }).toList(),
             ],
           ),
         ],
@@ -240,9 +252,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       padding: const EdgeInsets.only(bottom: 8, left: 4),
       child: Text(
         title,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: Colors.white,
+        style: GoogleFonts.outfit(
+          color: Colors.white70,
           fontWeight: FontWeight.bold,
+          fontSize: 14,
+          letterSpacing: 1,
         ),
       ),
     );
@@ -274,8 +288,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               title: Text(
                 title,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                style: GoogleFonts.outfit(
                   color: isDestructive ? Colors.redAccent : Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
                 ),
               ),
               trailing: const Icon(
@@ -314,14 +330,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               secondary: Icon(icon, color: Colors.white),
               title: Text(
                 title,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(color: Colors.white),
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                ),
               ),
               value: value,
               onChanged: onChanged,
-              activeColor: Colors.white,
-              activeTrackColor: Colors.white.withOpacity(0.4),
+              activeColor: AppTheme.primaryColor,
+              activeTrackColor: AppTheme.primaryColor.withOpacity(0.4),
             ),
           ),
         ),

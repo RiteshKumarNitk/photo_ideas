@@ -122,25 +122,18 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     const SizedBox(height: 30),
                     Text(
                       "Photo Ideas",
-                      style: GoogleFonts.playfairDisplay(
-                        fontSize: 40,
+                      style: GoogleFonts.outfit(
+                        fontSize: 48,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
-                        letterSpacing: 1.5,
-                        shadows: [
-                          const Shadow(
-                            color: Colors.black45,
-                            offset: Offset(2, 2),
-                            blurRadius: 4,
-                          ),
-                        ],
+                        letterSpacing: -1.5,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     Text(
                       "Capture the perfect moment",
-                      style: GoogleFonts.lato(
-                        fontSize: 16,
+                      style: GoogleFonts.outfit(
+                        fontSize: 18,
                         color: Colors.white70,
                         letterSpacing: 0.5,
                       ),

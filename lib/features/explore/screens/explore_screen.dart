@@ -9,6 +9,9 @@ import '../../../core/services/api_service.dart';
 import '../../../core/models/photo_model.dart';
 import '../../../core/widgets/scale_button.dart';
 import 'discovery_screen.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -121,12 +124,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 children: [
                   Text(
                     "Explore",
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    style: Theme.of(context).textTheme.displayMedium?.copyWith(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: -1,
+                      letterSpacing: -1.5,
                     ),
-                  ),
+                  ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1, end: 0),
                   const SizedBox(height: 24),
                   Container(
                     decoration: BoxDecoration(
@@ -161,6 +164,37 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           ),
                         ),
                       ),
+                    ),
+                  ).animate().fadeIn(delay: 100.ms).scale(begin: const Offset(0.98, 0.98), end: const Offset(1, 1)),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 45,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _filters.length,
+                      itemBuilder: (context, index) {
+                        final filter = _filters[index];
+                        final isSelected = _selectedFilter == filter;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: ChoiceChip(
+                            label: Text(filter),
+                            selected: isSelected,
+                            onSelected: (selected) => _onFilterSelected(filter),
+                            labelStyle: GoogleFonts.outfit(
+                              color: isSelected ? Colors.white : Colors.white70,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            ),
+                            selectedColor: AppTheme.primaryColor,
+                            backgroundColor: Colors.white.withOpacity(0.05),
+                            side: BorderSide(
+                              color: isSelected ? AppTheme.primaryColor : Colors.white.withOpacity(0.1),
+                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            showCheckmark: false,
+                          ).animate().fadeIn(delay: (200 + (index * 50)).ms).slideX(begin: 0.2, end: 0),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -206,7 +240,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       fit: BoxFit.cover,
                     ),
                   ),
-                );
+                ).animate(delay: (index * 50).ms).fadeIn().slideY(begin: 0.1, end: 0);
               },
             ),
           ),

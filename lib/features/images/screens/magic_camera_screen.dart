@@ -27,6 +27,9 @@ import '../../../utils/image_downloader.dart';
 import '../../../core/services/face_filter_service.dart';
 import '../../../core/utils/face_filter_processor.dart';
 import 'dart:ui' as ui;
+import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class MagicCameraScreen extends StatefulWidget {
   final PhotoModel? photo;
@@ -1244,10 +1247,8 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
     }
   }
 
-  double _calculateCoverScale() {
-    if (_controller == null || !_controller!.value.isInitialized) return 1.0;
-    return 1.0;
-  }
+  // Removed duplicate _calculateCoverScale
+
 
   @override
   void dispose() {
@@ -1301,7 +1302,7 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
           if (_smartCompositionEnabled)
             Positioned.fill(child: _buildSmartComposition()),
 
-          if (_aiCoachEnabled) _buildAiScore(),
+          if (_aiCoachEnabled && _matchScore > 0) _buildAiScore(),
           if (_emotionCaptureEnabled) _buildEmotionIndicator(),
           if (_handGestureEnabled && _lastGestures.isNotEmpty)
             _buildGestureIndicator(),
@@ -1326,137 +1327,361 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
 
   Widget _buildTopBar() {
     return Positioned(
-      top: 50,
-      left: 10,
-      right: 10,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      top: 55,
+      left: 15,
+      right: 15,
+      child: Column(
         children: [
-          IconButton(
-            icon: const Icon(Icons.close, color: Colors.white, size: 28),
-            onPressed: () => Navigator.pop(context),
-          ),
-          Row(
-            children: [
-              if (_timerDuration > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${_timerDuration}s',
-                    style: const TextStyle(
-                      color: Colors.amber,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black38,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white, size: 26),
+                  onPressed: () => Navigator.pop(context),
                 ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: Icon(Icons.settings, color: Colors.white, size: 28),
-                onPressed: _showSettingsPanel,
-              ),
-            ],
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildTopControlButton(
+                      icon: _flashMode == FlashMode.off 
+                          ? Icons.flash_off_rounded 
+                          : _flashMode == FlashMode.auto 
+                              ? Icons.flash_auto_rounded 
+                              : Icons.flash_on_rounded,
+                      label: _getFlashLabel(),
+                      onPressed: _cycleFlash,
+                      isActive: _flashMode != FlashMode.off,
+                    ),
+                    const SizedBox(width: 5),
+                    _buildTopControlButton(
+                      icon: _timerDuration == 0 ? Icons.timer_off_rounded : Icons.timer_rounded,
+                      label: '${_timerDuration}s',
+                      onPressed: _toggleTimer,
+                      isActive: _timerDuration > 0,
+                    ),
+                    const SizedBox(width: 5),
+                    _buildTopControlTextButton(
+                      label: _aspectRatioLabels[_currentAspectRatioIndex],
+                      onPressed: _toggleAspectRatio,
+                    ),
+                    const SizedBox(width: 5),
+                    _buildTopControlButton(
+                      icon: _currentResolutionPreset == ResolutionPreset.max 
+                          ? Icons.hd_rounded 
+                          : Icons.sd_rounded,
+                      label: _currentResolutionPreset == ResolutionPreset.max ? '4K' : 'HD',
+                      onPressed: _toggleResolution,
+                      isActive: _currentResolutionPreset == ResolutionPreset.max,
+                    ),
+                  ],
+                ),
+                IconButton(
+                  icon: Icon(
+                    _isInit ? Icons.refresh_rounded : Icons.sync_problem_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                  onPressed: () {
+                    setState(() => _isInit = false);
+                    _initCamera();
+                  },
+                ),
+              ],
+            ),
           ),
+          if (_aiCoachEnabled)
+            Padding(
+              padding: const EdgeInsets.only(top: 15),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [AppTheme.primaryColor.withOpacity(0.9), AppTheme.secondaryColor.withOpacity(0.9)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.psychology, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      "AI COACH ACTIVE",
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
+              ),
+            ),
         ],
+      ),
+    ).animate().fadeIn().slideY(begin: -0.2, end: 0);
+  }
+
+  Widget _buildTopControlButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+    bool isActive = false,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isActive ? Colors.amber : Colors.white,
+              size: 22,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label.toUpperCase(),
+              style: GoogleFonts.outfit(
+                color: isActive ? Colors.amber : Colors.white70,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  Widget _buildTopControlTextButton({
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white, width: 1.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: Text(
+                label,
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "RATIO",
+              style: GoogleFonts.outfit(
+                color: Colors.white70,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
   Widget _buildBottomControls() {
     return Positioned(
-      bottom: 40,
-      left: 20,
-      right: 20,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (_lastCapturedPhoto != null)
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => Scaffold(
-                      backgroundColor: Colors.black,
-                      appBar: AppBar(
-                        backgroundColor: Colors.transparent,
-                        leading: const BackButton(color: Colors.white),
-                      ),
-                      body: PhotoView(
-                        imageProvider: FileImage(
-                          File(_lastCapturedPhoto!.path),
+      bottom: 0,
+      left: 0,
+      right: 0,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.transparent, Colors.black.withOpacity(0.8)],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Mode Bar replaces settings
+            _buildAiModesBar(),
+            const SizedBox(height: 30),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (_lastCapturedPhoto != null)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => Scaffold(
+                            backgroundColor: Colors.black,
+                            appBar: AppBar(
+                              backgroundColor: Colors.transparent,
+                              leading: const BackButton(color: Colors.white),
+                            ),
+                            body: PhotoView(
+                              imageProvider: FileImage(
+                                File(_lastCapturedPhoto!.path),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white24, width: 2),
+                        image: DecorationImage(
+                          image: FileImage(File(_lastCapturedPhoto!.path)),
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),
+                  ).animate().scale()
+                else
+                  _buildIconButton(
+                    icon: Icons.cameraswitch_rounded,
+                    onPressed: () {
+                      setState(() => _isInit = false);
+                      _toggleCamera();
+                    },
                   ),
-                );
-              },
-              child: Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                  image: DecorationImage(
-                    image: FileImage(File(_lastCapturedPhoto!.path)),
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            )
-          else
-            const SizedBox(width: 50),
 
-          const SizedBox(height: 20),
-
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              IconButton(
-                onPressed: _toggleCamera,
-                icon: const Icon(
-                  Icons.cameraswitch,
-                  color: Colors.white,
-                  size: 30,
-                ),
-              ),
-              GestureDetector(
-                onTap: _takePicture,
-                child: Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 4),
-                  ),
+                GestureDetector(
+                  onTap: _takePicture,
                   child: Container(
-                    margin: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
+                    width: 75,
+                    height: 75,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.white,
+                      border: Border.all(color: Colors.white, width: 4),
+                    ),
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
+                ).animate(onPlay: (c) => c.repeat(reverse: true)).scale(begin: const Offset(1, 1), end: const Offset(1.04, 1.04), duration: 2.seconds),
+
+                _buildIconButton(
+                  icon: _gridMode == 0 ? Icons.grid_off_rounded : Icons.grid_on_rounded,
+                  onPressed: () => setState(() => _gridMode = (_gridMode + 1) % 3),
+                  isActive: _gridMode != 0,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ).animate().fadeIn().slideY(begin: 0.2, end: 0);
+  }
+
+  Widget _buildAiModesBar() {
+    final modes = [
+      {'id': 'ghost', 'icon': Icons.image_outlined, 'label': 'GHOST', 'active': _isGhostMode},
+      {'id': 'coach', 'icon': Icons.psychology_outlined, 'label': 'AI COACH', 'active': _aiCoachEnabled},
+      {'id': 'smart', 'icon': Icons.grid_3x3_rounded, 'label': 'SMART', 'active': _smartCompositionEnabled},
+      {'id': 'face', 'icon': Icons.face_retouching_natural, 'label': 'FACE FX', 'active': _isFaceFilterActive},
+      {'id': 'level', 'icon': Icons.line_weight_rounded, 'label': 'LEVELER', 'active': _isLevelerActive},
+      {'id': 'gesture', 'icon': Icons.back_hand_rounded, 'label': 'GESTURE', 'active': _handGestureEnabled},
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: modes.map((mode) {
+          final bool isActive = mode['active'] as bool;
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  switch (mode['id']) {
+                    case 'ghost': _isGhostMode = !_isGhostMode; break;
+                    case 'coach': _aiCoachEnabled = !_aiCoachEnabled; break;
+                    case 'smart': _smartCompositionEnabled = !_smartCompositionEnabled; break;
+                    case 'face': _isFaceFilterActive = !_isFaceFilterActive; break;
+                    case 'level': _toggleLeveler(); break;
+                    case 'gesture': _handGestureEnabled = !_handGestureEnabled; break;
+                  }
+                });
+              },
+              child: AnimatedContainer(
+                duration: 300.ms,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.amber.withOpacity(0.15) : Colors.white10,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isActive ? Colors.amber.withOpacity(0.5) : Colors.white10,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      mode['icon'] as IconData,
+                      color: isActive ? Colors.amber : Colors.white70,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      mode['label'] as String,
+                      style: GoogleFonts.outfit(
+                        color: isActive ? Colors.amber : Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              IconButton(
-                onPressed: () {
-                  setState(() => _gridMode = (_gridMode + 1) % 3);
-                },
-                icon: Icon(
-                  _gridMode == 0 ? Icons.grid_off : Icons.grid_on,
-                  color: Colors.white,
-                  size: 30,
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildIconButton({required IconData icon, required VoidCallback onPressed, bool isActive = false}) {
+    return IconButton(
+      onPressed: onPressed,
+      icon: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.amber.withOpacity(0.2) : Colors.white10,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: isActive ? Colors.amber : Colors.white, size: 24),
       ),
     );
   }
@@ -1465,56 +1690,57 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
     return GestureDetector(
       onScaleStart: _handleScaleStart,
       onScaleUpdate: _handleScaleUpdate,
-      child: Center(
-        child: AspectRatio(
-          aspectRatio: _aspectRatios[_currentAspectRatioIndex],
-          child: ClipRect(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Background replacement layer
-                if (_backgroundReplacementEnabled &&
-                    _backgroundImageData != null)
-                  Image.memory(
-                    _backgroundImageData!,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
-
-                // Camera preview with style transfer
-                ColorFiltered(
-                  colorFilter: _styleTransferEnabled && _selectedStyleIndex > 0
-                      ? (_styleTransfers[_selectedStyleIndex].filter ??
-                            const ColorFilter.mode(
-                              Colors.transparent,
-                              BlendMode.dst,
-                            ))
-                      : const ColorFilter.mode(
-                          Colors.transparent,
-                          BlendMode.dst,
-                        ),
-                  child: Transform.scale(
-                    scale: _calculateCoverScale(),
-                    child: Center(child: CameraPreview(_controller!)),
-                  ),
-                ),
-
-                // Ghost mode overlay
-                if (_isGhostMode && widget.photo != null)
-                  Opacity(
-                    opacity: 0.5,
-                    child: Image.network(
-                      widget.photo!.url,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-              ],
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Camera Preview forced to cover
+          Transform.scale(
+            scale: _calculateCoverScale(),
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: _aspectRatios[_currentAspectRatioIndex],
+                child: CameraPreview(_controller!),
+              ),
             ),
           ),
-        ),
+
+          // Background replacement layer
+          if (_backgroundReplacementEnabled && _backgroundImageData != null)
+            Image.memory(
+              _backgroundImageData!,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+
+          // Ghost mode overlay
+          if (_isGhostMode && widget.photo != null)
+            Opacity(
+              opacity: 0.4,
+              child: Image.network(
+                widget.photo!.url,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+              ),
+            ),
+        ],
       ),
     );
+  }
+
+  double _calculateCoverScale() {
+    if (_controller == null) return 1.0;
+    final size = MediaQuery.of(context).size;
+    final deviceRatio = size.width / size.height;
+    final cameraRatio = _aspectRatios[_currentAspectRatioIndex];
+    
+    // Calculate scale factor to cover the screen
+    if (cameraRatio > deviceRatio) {
+      return cameraRatio / deviceRatio;
+    } else {
+      return deviceRatio / cameraRatio;
+    }
   }
 
   Widget _buildSplitView() {
@@ -1633,57 +1859,70 @@ class _MagicCameraScreenState extends State<MagicCameraScreen>
 
   Widget _buildAiScore() {
     return Positioned(
-      top: 100,
+      top: 130,
       left: 20,
       right: 20,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: _matchScore > 80
-                    ? Colors.greenAccent
-                    : Colors.yellowAccent,
-                width: 2,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.auto_awesome,
-                  color: _matchScore > 80
-                      ? Colors.greenAccent
-                      : Colors.yellowAccent,
-                  size: 20,
+      child: Center(
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _matchScore > 80 ? Colors.green.withOpacity(0.9) : Colors.black87,
+                    _matchScore > 80 ? Colors.greenAccent.withOpacity(0.8) : Colors.black54,
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  "Match: ${_matchScore.toInt()}%",
-                  style: const TextStyle(
+                borderRadius: BorderRadius.circular(25),
+                border: Border.all(
+                  color: _matchScore > 80 ? Colors.greenAccent : Colors.white24,
+                  width: 1.5,
+                ),
+                boxShadow: [
+                  if (_matchScore > 80)
+                    BoxShadow(
+                      color: Colors.greenAccent.withOpacity(0.3),
+                      blurRadius: 15,
+                      spreadRadius: 2,
+                    ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _matchScore > 80 ? Icons.check_circle_rounded : Icons.auto_awesome,
+                    color: _matchScore > 80 ? Colors.white : Colors.amber,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    "MATCH: ${_matchScore.toInt()}%",
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ).animate(target: _matchScore > 0 ? 1 : 0).fadeIn().scale(begin: const Offset(0.9, 0.9)),
+            if (_feedbackText.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _feedbackText,
+                  style: GoogleFonts.outfit(
                     color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 14,
+                    shadows: [Shadow(color: Colors.black54, blurRadius: 4)],
                   ),
                 ),
-              ],
-            ),
-          ),
-          if (_matchScore < 90 && _detectedPose != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                _feedbackText,
-                style: const TextStyle(
-                  color: Colors.white,
-                  shadows: [Shadow(color: Colors.black)],
-                ),
-              ),
-            ),
-        ],
+              ).animate(target: _feedbackText.isNotEmpty ? 1 : 0).fadeIn(),
+          ],
+        ),
       ),
     );
   }

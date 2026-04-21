@@ -5,6 +5,9 @@ import '../../../core/services/api_service.dart';
 
 import '../../auth/screens/login_screen.dart';
 import 'dart:ui';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class DiscoveryScreen extends StatefulWidget {
   const DiscoveryScreen({super.key});
@@ -134,13 +137,17 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     }
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppTheme.darkBg,
       appBar: AppBar(
-        title: const Text("Style Swipe", style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.black,
+        title: Text(
+          "Style Swipe",
+          style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
+      extendBodyBehindAppBar: true,
       body: Column(
         children: [
           Expanded(
@@ -177,18 +184,20 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                           children: [
                             Text(
                               photo.category,
-                              style: const TextStyle(
-                                color: Colors.white,
+                              style: GoogleFonts.outfit(
+                                color: Colors.white70,
                                 fontSize: 14,
+                                letterSpacing: 1,
                               ),
                             ),
                             const SizedBox(height: 8),
-                            const Text(
-                              "Swipe Right to Save",
-                              style: TextStyle(
+                            Text(
+                              "Swipe Right to Like",
+                              style: GoogleFonts.outfit(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 20,
+                                fontSize: 24,
+                                letterSpacing: -0.5,
                               ),
                             ),
                           ],
@@ -196,7 +205,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                       ),
                     ],
                   ),
-                );
+                ).animate().scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1), duration: 400.ms, curve: Curves.easeOutBack);
               },
             ),
           ),
@@ -206,8 +215,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _buildActionButton(
-                  Icons.close,
-                  Colors.red,
+                  Icons.close_rounded,
+                  AppTheme.accentColor,
                   () => _swiperController.swipeLeft(),
                 ),
                 _buildActionButton(Icons.info_outline, Colors.blue, () {
@@ -216,8 +225,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   );
                 }),
                 _buildActionButton(
-                  Icons.favorite,
-                  Colors.green,
+                  Icons.favorite_rounded,
+                  AppTheme.secondaryColor,
                   _handleLikeAction,
                 ),
               ],
@@ -235,19 +244,13 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         height: 60,
         width: 60,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.1),
+          color: color.withOpacity(0.1),
           shape: BoxShape.circle,
-          border: Border.all(color: color.withOpacity(0.5)),
-          boxShadow: [
-            BoxShadow(
-              color: color.withOpacity(0.2),
-              blurRadius: 10,
-              spreadRadius: 2,
-            ),
-          ],
+          border: Border.all(color: color.withOpacity(0.3), width: 2),
         ),
-        child: Icon(icon, color: color, size: 30),
+        child: Icon(icon, color: color, size: 32),
       ),
-    );
+    ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+     .scale(begin: const Offset(1, 1), end: const Offset(1.05, 1.05), duration: 2.seconds, curve: Curves.easeInOut);
   }
 }

@@ -9,6 +9,9 @@ import '../../admin/screens/admin_dashboard_screen.dart';
 import 'referral_screen.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../../core/widgets/scale_button.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/theme/app_theme.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -132,17 +135,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ],
                   ),
-                  child: const Text(
-                    "Sign In / Sign Up",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                    child: Text(
+                      "Sign In / Sign Up",
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 40),
+                ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+                const SizedBox(height: 40),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 30),
                 child: _buildGlassProfileOption(
@@ -173,7 +176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     );
                   },
-                ),
+                ).animate(delay: 400.ms).fadeIn().slideY(begin: 0.1, end: 0),
               ),
             ],
           ),
@@ -194,134 +197,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.5),
-                  width: 2,
+                gradient: LinearGradient(
+                  colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
                 ),
               ),
               child: CircleAvatar(
                 radius: 50,
-                backgroundColor: Colors.white.withOpacity(0.2),
-                backgroundImage: null,
+                backgroundColor: AppTheme.darkSurface,
                 child: Text(
                   name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                  style: const TextStyle(fontSize: 40, color: Colors.white),
+                  style: GoogleFonts.outfit(
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-            ),
+            ).animate().scale(begin: const Offset(0.8, 0.8), end: const Offset(1, 1), duration: 600.ms, curve: Curves.elasticOut),
             const SizedBox(height: 16),
             Text(
               name,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineMedium?.copyWith(color: Colors.white),
-            ),
+              style: GoogleFonts.outfit(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ).animate(delay: 200.ms).fadeIn().slideY(begin: 0.2, end: 0),
             Text(
               email,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
-            ),
+              style: GoogleFonts.outfit(
+                fontSize: 16,
+                color: Colors.white60,
+              ),
+            ).animate(delay: 300.ms).fadeIn(),
             const SizedBox(height: 32),
-            _buildGlassProfileOption(
-              context,
-              Icons.edit,
-              "Edit Profile",
-              onTap: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const EditProfileScreen(),
-                  ),
-                );
-                if (result == true) {
-                  setState(() {});
-                }
-              },
-            ),
-            _buildGlassProfileOption(
-              context,
-              Icons.card_giftcard,
-              "Referrals & Rewards",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ReferralScreen(),
-                  ),
-                );
-              },
-            ),
-            _buildGlassProfileOption(
-              context,
-              Icons.favorite,
-              "Favorites",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const FavoritesScreen(),
-                  ),
-                );
-              },
-            ),
-            _buildGlassProfileOption(
-              context,
-              Icons.settings,
-              "Settings",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const SettingsScreen(),
-                  ),
-                );
-              },
-            ),
-            _buildGlassProfileOption(
-              context,
-              Icons.help,
-              "Help & Support",
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const HelpSupportScreen(),
-                  ),
-                );
-              },
-            ),
-            if (email == 'riteshkumar.nitk21@gmail.com') ...[
+            ...[
               _buildGlassProfileOption(
                 context,
-                Icons.admin_panel_settings,
-                "Admin Dashboard",
+                Icons.edit,
+                "Edit Profile",
+                onTap: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EditProfileScreen(),
+                    ),
+                  );
+                  if (result == true) {
+                    setState(() {});
+                  }
+                },
+              ),
+              _buildGlassProfileOption(
+                context,
+                Icons.card_giftcard,
+                "Referrals & Rewards",
                 onTap: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const AdminDashboardScreen(),
+                      builder: (context) => const ReferralScreen(),
                     ),
                   );
                 },
               ),
-            ],
-            const SizedBox(height: 20),
-            _buildGlassProfileOption(
-              context,
-              Icons.logout,
-              "Logout",
-              isDestructive: true,
-              onTap: _logout,
-            ),
-            if (email != 'riteshkumar.nitk21@gmail.com')
               _buildGlassProfileOption(
                 context,
-                Icons.delete_forever,
-                "Delete Account",
-                isDestructive: true,
-                onTap: () => _deleteAccount(context),
+                Icons.favorite,
+                "Favorites",
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FavoritesScreen(),
+                    ),
+                  );
+                },
               ),
+              _buildGlassProfileOption(
+                context,
+                Icons.settings,
+                "Settings",
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SettingsScreen(),
+                    ),
+                  );
+                },
+              ),
+              _buildGlassProfileOption(
+                context,
+                Icons.help,
+                "Help & Support",
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const HelpSupportScreen(),
+                    ),
+                  );
+                },
+              ),
+              if (email == 'riteshkumar.nitk21@gmail.com') ...[
+                _buildGlassProfileOption(
+                  context,
+                  Icons.admin_panel_settings,
+                  "Admin Dashboard",
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AdminDashboardScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
+              const SizedBox(height: 20),
+              _buildGlassProfileOption(
+                context,
+                Icons.logout,
+                "Logout",
+                isDestructive: true,
+                onTap: _logout,
+              ),
+              if (email != 'riteshkumar.nitk21@gmail.com')
+                _buildGlassProfileOption(
+                  context,
+                  Icons.delete_forever,
+                  "Delete Account",
+                  isDestructive: true,
+                  onTap: () => _deleteAccount(context),
+                ),
+            ].indexed.map((entry) {
+              int index = entry.$1;
+              Widget option = entry.$2;
+              return option.animate(delay: (400 + (index * 50)).ms).fadeIn().slideX(begin: 0.1, end: 0);
+            }).toList(),
           ],
         ),
       ),
@@ -345,32 +359,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
             filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    icon,
-                    color: isDestructive ? Colors.redAccent : Colors.white,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: TextStyle(
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: (isDestructive ? Colors.redAccent : Colors.white).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        icon,
+                        size: 20,
                         color: isDestructive ? Colors.redAccent : Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 16,
                       ),
                     ),
-                  ),
-                  const Icon(Icons.chevron_right, color: Colors.white54),
-                ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: GoogleFonts.outfit(
+                          color: isDestructive ? Colors.redAccent : Colors.white,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: Colors.white24),
+                  ],
+                ),
               ),
-            ),
           ),
         ),
       ),

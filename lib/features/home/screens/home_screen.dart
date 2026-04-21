@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/services/api_service.dart';
 import '../../../utils/data_source.dart';
 import '../../../core/utils/page_transitions.dart';
@@ -17,6 +18,7 @@ import '../../profile/screens/profile_screen.dart';
 import '../../images/screens/fullscreen_image_viewer.dart';
 import '../../settings/screens/settings_screen.dart';
 import '../../images/screens/magic_camera_screen.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../images/screens/image_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -140,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(color: Colors.black.withOpacity(0.4)),
           ),
           // Content
-          _screens[_selectedIndex],
+          _screens[_selectedIndex].animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0),
         ],
       ),
       bottomNavigationBar: Padding(
@@ -544,7 +546,7 @@ class _HomeContentState extends State<HomeContent> {
                     color: Colors.white70,
                     fontSize: 16,
                   ),
-                ),
+                ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.1, end: 0),
                 const SizedBox(height: 24),
 
                 // Search Bar (Visual)
@@ -575,7 +577,7 @@ class _HomeContentState extends State<HomeContent> {
                       ],
                     ),
                   ),
-                ),
+                ).animate().fadeIn(delay: 200.ms).scale(begin: const Offset(0.95, 0.95), end: const Offset(1, 1)),
                 const SizedBox(height: 32),
 
                 // New Arrivals
@@ -758,7 +760,7 @@ class _HomeContentState extends State<HomeContent> {
                     );
                   }
                 },
-              );
+              ).animate(delay: (100 * index).ms).fadeIn().slideY(begin: 0.2, end: 0);
             },
           ),
         ),
@@ -811,11 +813,11 @@ class _HomeContentState extends State<HomeContent> {
                 const SizedBox(height: 16),
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: GoogleFonts.outfit(
                     color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    letterSpacing: 0.5,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    letterSpacing: -0.2,
                   ),
                   textAlign: TextAlign.center,
                 ),
